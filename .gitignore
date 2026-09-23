@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Environment / secrets — never commit real .env
+.env
+*.local.env
+backend/.env
+frontend/.env
+
+# Local runtime data and evaluation outputs
+.localdata/
+backend/.localdata/
+results/
+
+# Node / frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
+*.log
+
+# Terraform state (never commit)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

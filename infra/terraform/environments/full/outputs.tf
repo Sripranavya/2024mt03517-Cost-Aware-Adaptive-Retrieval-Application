@@ -1,0 +1,35 @@
+output "alb_dns_name" {
+  value = module.compute.alb_dns_name
+}
+
+output "ecr_repository_url" {
+  value = module.compute.ecr_repository_url
+}
+
+output "s3_bucket_name" {
+  value = module.data.s3_bucket_name
+}
+
+output "opensearch_endpoint" {
+  value = module.data.opensearch_endpoint
+}
+
+output "sqs_queue_url" {
+  value = module.messaging.queue_url
+}
+
+output "sns_topic_arn" {
+  value = module.messaging.topic_arn
+}
+
+output "cognito_user_pool_id" {
+  value = module.auth.user_pool_id
+}
+
+output "cognito_app_client_id" {
+  value = module.auth.app_client_id
+}
+
+output "dashboard_name" {
+  value = module.observability.dashboard_name
+}

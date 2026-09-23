@@ -1,0 +1,22 @@
+# Copy to terraform.tfvars and fill in. A human applies this in a restricted
+# lab AWS account — the coding agent never runs terraform apply.
+
+region              = "us-east-1"
+name_prefix         = "agentic-rag-lab"
+s3_bucket_name      = "agentic-rag-lab-corpus-CHANGE-ME"
+dynamodb_table_name = "agentic-rag-state"
+
+# ACM cert covering your ALB domain (create/validate separately).
+acm_certificate_arn = "arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE"
+
+image_tag     = "latest"
+desired_count = 1
+
+bedrock_model_id       = "anthropic.claude-3-sonnet-20240229-v1:0"
+bedrock_embed_model_id = "amazon.titan-embed-text-v2:0"
+bedrock_model_arns = [
+  "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0",
+  "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0",
+]
+
+frontend_urls = ["http://localhost:5173"]

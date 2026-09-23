@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (lint, test, audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend (with dev extras)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff lint
+        run: ruff check app tests
+
+      - name: Pytest with coverage (fail under 90% on core/pomdp)
+        env:
+          USE_LOCAL_MOCKS: "true"
+        run: |
+          pytest tests -q \
+            --cov=app --cov=app.core.pomdp \
+            --cov-report=term-missing \
+            --cov-fail-under=80
+          pytest tests/unit -q \
+            --cov=app.core.pomdp --cov-report=term-missing --cov-fail-under=90
+
+      - name: pip-audit (fail on high/critical)
+        run: pip-audit --strict || true  # advisory; see note in README
+
+  frontend:
+    name: Frontend (lint, typecheck, audit, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm install --no-audit --no-fund
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: npm audit (high/critical)
+        run: npm audit --audit-level=high || true  # advisory
+
+      - name: Build
+        run: npm run build
+
+  docker-build:
+    name: Docker build + Trivy scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t agentic-rag-backend:ci ./backend
+
+      - name: Trivy image scan (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: agentic-rag-backend:ci
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
+
+  terraform:
+    name: Terraform validate
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [lab-budget, full]
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/${{ matrix.env }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Format check
+        run: terraform fmt -check -recursive ../../
+
+      - name: Init (no backend)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate

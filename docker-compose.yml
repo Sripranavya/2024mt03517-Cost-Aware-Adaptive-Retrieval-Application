@@ -1,0 +1,38 @@
+# Local development stack — brings up backend + frontend in local-mock mode.
+# No AWS account or credentials required (USE_LOCAL_MOCKS=true).
+
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      USE_LOCAL_MOCKS: "true"
+      APP_ENV: "local"
+      LOG_LEVEL: "INFO"
+      CORS_ALLOW_ORIGINS: "http://localhost:5173"
+      LOCAL_DATA_DIR: "/app/.localdata"
+      SQLITE_PATH: "/app/.localdata/state.sqlite"
+      FAISS_INDEX_PATH: "/app/.localdata/faiss.index"
+      LOCAL_DEMO_PASSWORD: "local-demo"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_data:/app/.localdata
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000/api/v1"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

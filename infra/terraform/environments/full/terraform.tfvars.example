@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars and fill in. A human applies this in an account that
+# permits OpenSearch, NAT gateways, IAM roles, etc. The coding agent never runs
+# terraform apply.
+
+region              = "us-east-1"
+name_prefix         = "agentic-rag"
+s3_bucket_name      = "agentic-rag-corpus-CHANGE-ME"
+dynamodb_table_name = "agentic-rag-state"
+
+# Optional customer-managed KMS key for SSE-KMS (leave "" for AES256).
+kms_key_arn = ""
+
+opensearch_domain_name = "agentic-rag-vectors"
+
+acm_certificate_arn = "arn:aws:acm:us-east-1:000000000000:certificate/EXAMPLE"
+
+image_tag     = "latest"
+task_cpu      = "512"
+task_memory   = "1024"
+desired_count = 2
+
+bedrock_model_id       = "anthropic.claude-3-sonnet-20240229-v1:0"
+bedrock_embed_model_id = "amazon.titan-embed-text-v2:0"
+bedrock_model_arns = [
+  "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0",
+  "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0",
+]
+
+hosted_ui_domain_prefix = ""
+frontend_urls           = ["https://your-frontend.example.com"]
