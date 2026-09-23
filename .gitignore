@@ -5,9 +5,15 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .coverage
+coverage.xml
 htmlcov/
 .venv/
 venv/
+
+# Coverage / analysis reports
+coverage/
+*.lcov
+.scannerwork/
 
 # Environment / secrets — never commit real .env
 .env

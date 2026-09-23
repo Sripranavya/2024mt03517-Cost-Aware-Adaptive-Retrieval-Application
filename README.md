@@ -100,8 +100,22 @@ Frontend:
 ```bash
 cd frontend
 npm run lint && npm run typecheck
+npm test                                 # Vitest unit tests (client, schemas, auth, components)
+npm run coverage                         # Vitest + v8 coverage (lcov)
 npm run test:e2e                         # Playwright: login → query → trace
 ```
+
+## Static analysis & security scanning
+
+- **SonarQube/SonarCloud:** [sonar-project.properties](sonar-project.properties) covers
+  backend + frontend and imports coverage (`backend/coverage.xml`,
+  `frontend/coverage/lcov.info`). A guarded `sonarqube` CI job runs the scan when a
+  `SONAR_TOKEN` secret is configured.
+- **Dependency audits (in CI):** `pip-audit` (backend) and `npm audit` (frontend). The
+  only backend advisory is `ecdsa` (transitive via `python-jose`, no upstream fix) — not
+  exploitable here since auth uses HS256/RS256, never ECDSA. Frontend advisories are in
+  dev/build tooling (Vite/Vitest) or require a breaking React Router v7 upgrade; none are
+  reachable in this client-only SPA.
 
 ---
 
