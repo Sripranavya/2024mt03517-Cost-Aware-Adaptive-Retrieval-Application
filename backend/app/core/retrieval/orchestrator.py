@@ -91,6 +91,7 @@ class RetrievalOrchestrator:
         episode_budget_usd: float = 0.0,
         min_marginal_gain: float = 0.0,
         low_gain_patience: int = 2,
+        short_answers: bool = False,
     ) -> None:
         self.connectors = connectors
         self.evaluator = evaluator
@@ -107,6 +108,7 @@ class RetrievalOrchestrator:
         self.episode_budget_usd = max(0.0, episode_budget_usd)
         self.min_marginal_gain = max(0.0, min_marginal_gain)
         self.low_gain_patience = max(1, low_gain_patience)
+        self.short_answers = short_answers
     # --- action execution -------------------------------------------------------
     def _retrieve_with_retry(
         self, connector: SourceConnector, query: str
@@ -297,7 +299,7 @@ class RetrievalOrchestrator:
             seen.add(doc.id)
             unique.append(doc)
         top = unique[: self.k]
-        prompt = build_answer_prompt(query, top)
+        prompt = build_answer_prompt(query, top, short=self.short_answers)
         with LatencyTimer() as timer:
             response = self.llm.generate(prompt)
         cost_tracker.record(

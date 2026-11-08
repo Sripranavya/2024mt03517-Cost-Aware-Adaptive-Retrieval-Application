@@ -32,6 +32,7 @@ if str(BACKEND_ROOT) not in sys.path:
 # Fixed corpus: no live Wikipedia/arXiv calls and no sample-corpus seeding.
 os.environ.setdefault("LIVE_SOURCES", "false")
 os.environ.setdefault("SEED_SAMPLE_CORPUS", "false")
+os.environ.setdefault("SHORT_ANSWERS", "true")  # references are short spans
 
 from app.config import get_settings  # noqa: E402
 from app.core.benchmark import (  # noqa: E402

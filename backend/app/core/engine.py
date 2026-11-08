@@ -127,6 +127,7 @@ class Engine:
             episode_budget_usd=settings.episode_budget_usd,
             min_marginal_gain=settings.min_marginal_gain,
             low_gain_patience=settings.low_gain_patience,
+            short_answers=settings.short_answers,
         )
         self._policies = self._build_policies()
 

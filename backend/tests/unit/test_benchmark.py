@@ -81,3 +81,10 @@ def test_conflicting_documents_contradict_the_reference() -> None:
     assert "Answer 1" in docs[0].text and "Answer 0" not in docs[0].text
     assert items[0]["reference"] == "Answer 0"
     assert conflicting_documents(rows[:1]) == ([], [])
+
+
+def test_short_answer_instruction_is_opt_in() -> None:
+    from app.core.prompts import build_answer_prompt
+
+    assert "shortest correct answer" not in build_answer_prompt("Q?", [])
+    assert "shortest correct answer" in build_answer_prompt("Q?", [], short=True)

@@ -101,6 +101,7 @@ class Settings(BaseSettings):
     low_gain_patience: int = Field(default=2, ge=1, le=10, alias="LOW_GAIN_PATIENCE")
     live_sources: bool | None = Field(default=None, alias="LIVE_SOURCES")
     seed_sample_corpus: bool = Field(default=True, alias="SEED_SAMPLE_CORPUS")
+    short_answers: bool = Field(default=False, alias="SHORT_ANSWERS")
     llm_cache_dir: str = Field(default="", alias="LLM_CACHE_DIR")
 
     # --- Cognito ---

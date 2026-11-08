@@ -21,7 +21,9 @@ _SYSTEM_INSTRUCTION = (
 )
 
 
-def build_answer_prompt(query: str, documents: list[Document]) -> str:
+def build_answer_prompt(
+    query: str, documents: list[Document], *, short: bool = False
+) -> str:
     """Build a grounded answer prompt with a fenced, non-executable data block."""
     fence = new_fence_marker()
     blocks: list[str] = []
@@ -31,11 +33,18 @@ def build_answer_prompt(query: str, documents: list[Document]) -> str:
             header += f" title={doc.title}"
         blocks.append(f"{header}\n{doc.text}")
     context = "\n\n".join(blocks) if blocks else "(no evidence retrieved)"
+    style = (
+        "Reply with ONLY the shortest correct answer (a name, date, number, or "
+        "yes/no), no explanation and no full sentence.\n"
+        if short
+        else ""
+    )
     return (
         f"{_SYSTEM_INSTRUCTION}\n"
         f"----BEGIN {fence}----\n"
         f"{context}\n"
         f"----END {fence}----\n"
+        f"{style}"
         f"Question: {query}\n"
         f"Answer:"
     )
