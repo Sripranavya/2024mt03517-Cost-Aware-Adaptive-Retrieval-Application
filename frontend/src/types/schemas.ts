@@ -4,7 +4,19 @@ import { z } from "zod";
 // validated at runtime against these, so a backend schema change surfaces as a
 // type/validation error here instead of silently breaking at runtime.
 
-export const strategyNameSchema = z.enum(["pomdp", "fixed", "self_rag", "adaptive"]);
+export const strategyNameSchema = z.enum([
+  "pomdp",
+  "pomdp_vi",
+  "pomdp_quality",
+  "fixed",
+  "self_rag",
+  "adaptive",
+  "crag",
+  "flare",
+  "rag_fusion",
+  "step_back",
+  "hyde",
+]);
 export type StrategyName = z.infer<typeof strategyNameSchema>;
 
 export const observationSchema = z.object({
@@ -38,6 +50,7 @@ export const documentSchema = z.object({
   score: z.number(),
   text: z.string(),
 });
+export type Document = z.infer<typeof documentSchema>;
 
 export const costSummarySchema = z.object({
   total_input_tokens: z.number().int().min(0),
@@ -70,11 +83,18 @@ export type CompareResponse = z.infer<typeof compareResponseSchema>;
 export const strategyMetricsSchema = z.object({
   strategy: z.string(),
   accuracy: z.number(),
+  exact_match: z.number(),
+  f1: z.number(),
+  precision: z.number(),
+  recall: z.number(),
   avg_latency_ms: z.number(),
+  p50_latency_ms: z.number(),
+  p95_latency_ms: z.number(),
   avg_tokens: z.number(),
   avg_cost_usd: z.number(),
   avg_hops: z.number(),
   efficiency: z.number(),
+  success_rate: z.number(),
 });
 export type StrategyMetrics = z.infer<typeof strategyMetricsSchema>;
 
@@ -83,6 +103,18 @@ export const batchEvalResponseSchema = z.object({
   metrics: z.array(strategyMetricsSchema),
 });
 export type BatchEvalResponse = z.infer<typeof batchEvalResponseSchema>;
+
+export const predictionSchema = z.object({
+  query: z.string(),
+  difficulty: z.string(),
+  difficulty_confidence: z.number().min(0).max(1),
+  class_probabilities: z.record(z.string(), z.number()),
+  predicted_hops: z.number().int().min(0),
+  predicted_cost_usd: z.number().min(0),
+  recommended_strategy: z.string(),
+  features: z.record(z.string(), z.number()),
+});
+export type Prediction = z.infer<typeof predictionSchema>;
 
 export const tokenResponseSchema = z.object({
   access_token: z.string(),

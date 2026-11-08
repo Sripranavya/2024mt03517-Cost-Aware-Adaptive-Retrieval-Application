@@ -3,7 +3,7 @@
 The simplest baseline: always retrieve exactly ``n_retrievals`` sources (rotating
 through the available sources) and then STOP and generate. It never inspects the
 belief state, never reformulates, and has no cost model. This is the "retrieve a
-fixed number of times regardless of the query" strategy the dissertation
+fixed number of times regardless of the query" strategy this framework
 contrasts the POMDP controller against.
 
 The hard hop cap still applies as a safety guardrail.

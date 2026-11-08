@@ -1,5 +1,5 @@
-# full environment: the complete architecture matching the dissertation's
-# tech-stack slide — adds managed OpenSearch, SQS/SNS async orchestration,
+# full environment: the complete architecture — adds managed OpenSearch,
+# SQS/SNS async orchestration,
 # Cognito, and CloudWatch dashboards/alarms on top of the lab-budget core.
 #
 # Requires an account that permits creating IAM roles, OpenSearch domains, NAT

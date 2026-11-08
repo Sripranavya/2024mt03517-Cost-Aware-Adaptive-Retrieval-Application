@@ -26,8 +26,23 @@ from app.aws.factory import (
 )
 from app.aws.interfaces import Document
 from app.config import Settings, get_settings
-from app.core.baselines import AdaptiveRAGPolicy, FixedRAGPolicy, SelfRAGPolicy
+from app.core.baselines import (
+    AdaptiveRAGPolicy,
+    CorrectiveRAGPolicy,
+    FixedRAGPolicy,
+    FLAREPolicy,
+    HyDEPolicy,
+    RAGFusionPolicy,
+    SelfRAGPolicy,
+    StepBackRAGPolicy,
+)
 from app.core.evaluator import Evaluator
+from app.core.metrics import (
+    SUCCESS_F1_THRESHOLD,
+    exact_match,
+    percentile,
+    token_scores,
+)
 from app.core.pomdp.actions import RetrievalSource
 from app.core.pomdp.belief import BeliefUpdater
 from app.core.pomdp.policy import GreedyPolicy, Policy
@@ -50,12 +65,19 @@ class StrategyMetrics:
     """Aggregate metrics for one strategy over a labelled query set."""
 
     strategy: str
-    accuracy: float
+    accuracy: float  # semantic (embedding cosine) answer accuracy
+    exact_match: float  # SQuAD-style strict exact-match rate
+    f1: float  # mean token-overlap F1
+    precision: float  # mean token precision
+    recall: float  # mean token recall
     avg_latency_ms: float
+    p50_latency_ms: float  # median latency
+    p95_latency_ms: float  # tail latency (95th percentile)
     avg_tokens: float
     avg_cost_usd: float
     avg_hops: float
     efficiency: float  # accuracy per US-cent of cost
+    success_rate: float  # fraction of answers with F1 >= threshold
 
 
 class Engine:
@@ -120,6 +142,22 @@ class Engine:
             belief_updater=self.belief_updater,
             stop_threshold=self.settings.confidence_stop_threshold,
         )
+        # Ablation: the same greedy controller with the cost/latency/redundancy
+        # reward terms switched off (quality-only) — reuses GreedyPolicy and the
+        # RewardFunction, no duplicated logic.
+        quality_only = GreedyPolicy(
+            reward_fn=RewardFunction(
+                RewardConfig(
+                    quality_weight=self.settings.reward_quality_weight,
+                    cost_weight=0.0,
+                    latency_weight=0.0,
+                    redundancy_weight=0.0,
+                )
+            ),
+            belief_updater=self.belief_updater,
+            stop_threshold=self.settings.confidence_stop_threshold,
+            name="pomdp_quality",
+        )
         return {
             "pomdp": greedy,
             "pomdp_vi": ValueIterationPolicy(
@@ -127,9 +165,15 @@ class Engine:
                 belief_updater=self.belief_updater,
                 max_hops=self.settings.max_hops,
             ),
+            "pomdp_quality": quality_only,
             "fixed": FixedRAGPolicy(n_retrievals=3),
             "self_rag": SelfRAGPolicy(),
             "adaptive": AdaptiveRAGPolicy(),
+            "crag": CorrectiveRAGPolicy(),
+            "flare": FLAREPolicy(),
+            "rag_fusion": RAGFusionPolicy(),
+            "step_back": StepBackRAGPolicy(),
+            "hyde": HyDEPolicy(),
         }
 
     def available_strategies(self) -> list[str]:
@@ -163,13 +207,25 @@ class Engine:
         out: list[StrategyMetrics] = []
         for strategy in strategies:
             accs: list[float] = []
+            ems: list[float] = []
+            f1s: list[float] = []
+            precisions: list[float] = []
+            recalls: list[float] = []
             lats: list[float] = []
             toks: list[float] = []
             costs: list[float] = []
             hops: list[float] = []
+            successes: list[float] = []
             for item in items:
                 result = self.run_query(item["query"], strategy)
-                accs.append(self._cosine(result.answer, item["reference"]))
+                reference = item["reference"]
+                accs.append(self._cosine(result.answer, reference))
+                precision, recall, f1 = token_scores(result.answer, reference)
+                precisions.append(precision)
+                recalls.append(recall)
+                f1s.append(f1)
+                ems.append(exact_match(result.answer, reference))
+                successes.append(1.0 if f1 >= SUCCESS_F1_THRESHOLD else 0.0)
                 lats.append(result.cost.total_latency_ms if result.cost else 0.0)
                 toks.append(float(result.cost.total_tokens) if result.cost else 0.0)
                 costs.append(result.cost.total_usd_cost if result.cost else 0.0)
@@ -183,11 +239,18 @@ class Engine:
                 StrategyMetrics(
                     strategy=strategy,
                     accuracy=accuracy,
+                    exact_match=sum(ems) / n,
+                    f1=sum(f1s) / n,
+                    precision=sum(precisions) / n,
+                    recall=sum(recalls) / n,
                     avg_latency_ms=sum(lats) / n,
+                    p50_latency_ms=percentile(lats, 50.0),
+                    p95_latency_ms=percentile(lats, 95.0),
                     avg_tokens=sum(toks) / n,
                     avg_cost_usd=avg_cost,
                     avg_hops=sum(hops) / n,
                     efficiency=efficiency,
+                    success_rate=sum(successes) / n,
                 )
             )
         return out

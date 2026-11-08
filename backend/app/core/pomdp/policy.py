@@ -87,6 +87,7 @@ class GreedyPolicy(Policy):
         belief_updater: BeliefUpdater,
         stop_threshold: float = 0.85,
         source_profiles: dict[RetrievalSource, OutcomeProfile] | None = None,
+        name: str | None = None,
     ) -> None:
         if not 0.0 <= stop_threshold <= 1.0:
             raise ValueError("stop_threshold must be in [0, 1]")
@@ -94,6 +95,10 @@ class GreedyPolicy(Policy):
         self.belief_updater = belief_updater
         self.stop_threshold = stop_threshold
         self.source_profiles = source_profiles or DEFAULT_SOURCE_PROFILES
+        if name is not None:
+            # Instance-level override lets ablations (e.g. quality-only) reuse this
+            # class while reporting a distinct strategy id in the trace.
+            self.name = name
 
     # --- expected-outcome model -------------------------------------------------
     def _source_usage(self, state: POMDPState, source: RetrievalSource) -> int:

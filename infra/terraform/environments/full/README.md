@@ -1,6 +1,6 @@
 # full environment
 
-The **complete architecture** matching the dissertation's tech-stack slide. Use
+The **complete architecture**. Use
 only where the lab account has budget and permissions (creating IAM roles,
 OpenSearch domains, NAT gateways, etc. — many student sandboxes block these).
 

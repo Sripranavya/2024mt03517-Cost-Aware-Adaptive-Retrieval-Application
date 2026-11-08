@@ -5,7 +5,7 @@ Every non-health endpoint requires a valid Bearer JWT, verified server-side
 No endpoint ever trusts a client-supplied user id.
 
 * **Local mode** (``USE_LOCAL_MOCKS=true``): an HS256 signer issues short-lived
-  tokens after a demo-password check; the same secret verifies them. Intended for
+  tokens after a local-password check; the same secret verifies them. Intended for
   local dev and CI only.
 * **Cloud mode**: RS256 tokens issued by Amazon Cognito are verified against the
   pool's published JWKS, checking audience (app client id) and issuer.
@@ -15,11 +15,12 @@ Secrets and pool ids come from settings — never hardcoded.
 
 from __future__ import annotations
 
+import hmac
 import time
 from abc import ABC, abstractmethod
 from functools import lru_cache
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import Settings, get_settings
@@ -53,8 +54,9 @@ class LocalAuthenticator(Authenticator):
         self.expiry = settings.jwt_expiry_seconds
 
     def login(self, username: str, password: str) -> tuple[str, int]:
-        """Return (token, expires_in) for valid demo credentials."""
-        if password != self.demo_password:
+        """Return (token, expires_in) for valid local credentials."""
+        # Constant-time comparison avoids leaking the password via timing.
+        if not hmac.compare_digest(password.encode("utf-8"), self.demo_password.encode("utf-8")):
             raise AuthError("Invalid username or password")
         from jose import jwt
 
@@ -92,22 +94,37 @@ class CognitoAuthenticator(Authenticator):
     def __init__(self, settings: Settings) -> None:
         if not settings.cognito_user_pool_id or not settings.cognito_app_client_id:
             raise RuntimeError("Cognito pool id and app client id are required in cloud mode")
-        self.region = settings.cognito_region
+        pool_region = settings.cognito_user_pool_id.split("_", 1)[0]
+        self.region = settings.cognito_region or pool_region or settings.aws_region
         self.pool_id = settings.cognito_user_pool_id
         self.app_client_id = settings.cognito_app_client_id
         self.issuer = (
             f"https://cognito-idp.{self.region}.amazonaws.com/{self.pool_id}"
         )
         self._jwks: dict | None = None
+        self._jwks_fetched_at: float = 0.0
+        self._jwks_ttl_s: float = 3600.0
 
-    def _load_jwks(self) -> dict:
-        if self._jwks is None:
+    def _load_jwks(self, force: bool = False) -> dict:
+        # Refresh on first use, when forced (unknown kid), or after the TTL so
+        # Cognito key rotation doesn't reject otherwise-valid tokens.
+        now = time.time()
+        stale = (now - self._jwks_fetched_at) > self._jwks_ttl_s
+        if self._jwks is None or force or stale:
             import httpx
 
             resp = httpx.get(f"{self.issuer}/.well-known/jwks.json", timeout=5.0)
             resp.raise_for_status()
             self._jwks = resp.json()
+            self._jwks_fetched_at = now
         return self._jwks
+
+    def _find_key(self, kid: str) -> dict | None:
+        key = next((k for k in self._load_jwks()["keys"] if k["kid"] == kid), None)
+        if key is None:
+            # Possible key rotation: force a refresh and try once more.
+            key = next((k for k in self._load_jwks(force=True)["keys"] if k["kid"] == kid), None)
+        return key
 
     def verify(self, token: str) -> UserInfo:
         from jose import jwt
@@ -115,10 +132,7 @@ class CognitoAuthenticator(Authenticator):
 
         try:
             headers = jwt.get_unverified_header(token)
-            key = next(
-                (k for k in self._load_jwks()["keys"] if k["kid"] == headers["kid"]),
-                None,
-            )
+            key = self._find_key(headers["kid"])
             if key is None:
                 raise AuthError("Unknown signing key")
             claims = jwt.decode(
@@ -142,9 +156,19 @@ def get_authenticator() -> Authenticator:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> UserInfo:
-    """FastAPI dependency: verify the Bearer token and return the user."""
+    """FastAPI dependency: verify the Bearer token and return the user.
+
+    Reuses a user already verified during rate-limit keying (cached on
+    ``request.state``) to avoid verifying the same JWT twice per request.
+    """
+    cached = getattr(request.state, "auth_user", None)
+    if cached is not None:
+        return cached
     if credentials is None or not credentials.credentials:
         raise AuthError("Missing bearer token")
-    return get_authenticator().verify(credentials.credentials)
+    user = get_authenticator().verify(credentials.credentials)
+    request.state.auth_user = user
+    return user

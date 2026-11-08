@@ -43,3 +43,7 @@ crash.log
 .DS_Store
 .idea/
 .vscode/
+
+# Terraform variable files (keep examples)
+*.tfvars
+!*.tfvars.example

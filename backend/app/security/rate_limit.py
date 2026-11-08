@@ -16,7 +16,11 @@ from app.config import get_settings
 
 
 def rate_limit_key(request: Request) -> str:
-    """Key requests by user id (from a verified token) or client IP."""
+    """Key requests by user id (from a verified token) or client IP.
+
+    On success the verified user is cached on ``request.state`` so the auth
+    dependency can reuse it instead of verifying the JWT a second time.
+    """
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         token = auth[7:].strip()
@@ -25,6 +29,7 @@ def rate_limit_key(request: Request) -> str:
 
             user = get_authenticator().verify(token)
             if user.username:
+                request.state.auth_user = user
                 return f"user:{user.username}"
         except Exception:
             # Invalid token -> fall back to IP-based limiting.

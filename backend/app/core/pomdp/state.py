@@ -84,7 +84,7 @@ class POMDPState(BaseModel):
         """Return a new state with the given immutable updates applied.
 
         States are treated as immutable snapshots so the full hop-by-hop trace can
-        be reconstructed for the UI and the viva.
+        be reconstructed for the UI and auditing.
         """
         history = list(self.retrieval_history)
         if added_action is not None:

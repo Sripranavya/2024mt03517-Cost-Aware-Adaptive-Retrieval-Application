@@ -30,6 +30,12 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+        # Correlate every log line with its request when one is in scope.
+        from app.request_context import get_request_id
+
+        rid = get_request_id()
+        if rid:
+            payload.setdefault("request_id", rid)
         # Fold any structured 'extra' fields in, skipping reserved attributes.
         for key, value in record.__dict__.items():
             if key not in self._RESERVED and not key.startswith("_"):

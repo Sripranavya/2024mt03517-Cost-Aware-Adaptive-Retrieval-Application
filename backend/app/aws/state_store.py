@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 
 from app.aws.interfaces import StateStore
@@ -24,23 +25,26 @@ class SQLiteStateStore(StateStore):
         # check_same_thread=False so the FastAPI threadpool can share it safely
         # (all access is short, single-statement, and serialised by SQLite).
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._lock = threading.Lock()
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS episodes (key TEXT PRIMARY KEY, value TEXT)"
         )
         self._conn.commit()
 
     def put(self, key: str, value: dict) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO episodes (key, value) VALUES (?, ?)",
-            (key, json.dumps(value)),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO episodes (key, value) VALUES (?, ?)",
+                (key, json.dumps(value)),
+            )
+            self._conn.commit()
 
     def get(self, key: str) -> dict | None:
-        cursor = self._conn.execute(
-            "SELECT value FROM episodes WHERE key = ?", (key,)
-        )
-        row = cursor.fetchone()
+        with self._lock:
+            cursor = self._conn.execute(
+                "SELECT value FROM episodes WHERE key = ?", (key,)
+            )
+            row = cursor.fetchone()
         return json.loads(row[0]) if row else None
 
 

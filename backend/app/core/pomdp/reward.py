@@ -1,7 +1,7 @@
 r"""Cost-aware reward (utility) function.
 
-Formulation (documented for the viva)
--------------------------------------
+Formulation
+-----------
 The per-step utility traded off by the policy is
 
 .. math::

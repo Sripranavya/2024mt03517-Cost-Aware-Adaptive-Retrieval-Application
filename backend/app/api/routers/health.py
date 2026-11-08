@@ -7,11 +7,13 @@ from fastapi import APIRouter
 from app.config import get_settings
 from app.core.engine import get_engine
 from app.schemas import HealthResponse
+from app.security.rate_limit import limiter
 
 router = APIRouter(tags=["health"])
 
 
 @router.get("/health", response_model=HealthResponse)
+@limiter.exempt
 def health() -> HealthResponse:
     settings = get_settings()
     engine = get_engine()

@@ -14,7 +14,19 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.security.sanitize import strip_control_chars
 
-StrategyName = Literal["pomdp", "fixed", "self_rag", "adaptive"]
+StrategyName = Literal[
+    "pomdp",
+    "pomdp_vi",
+    "pomdp_quality",
+    "fixed",
+    "self_rag",
+    "adaptive",
+    "crag",
+    "flare",
+    "rag_fusion",
+    "step_back",
+    "hyde",
+]
 
 MAX_QUERY_LEN = 2000
 
@@ -115,16 +127,44 @@ class BatchEvalRequest(BaseModel):
 class StrategyMetricsSchema(BaseModel):
     strategy: str
     accuracy: float
+    exact_match: float
+    f1: float
+    precision: float
+    recall: float
     avg_latency_ms: float
+    p50_latency_ms: float
+    p95_latency_ms: float
     avg_tokens: float
     avg_cost_usd: float
     avg_hops: float
     efficiency: float
+    success_rate: float
 
 
 class BatchEvalResponse(BaseModel):
     count: int = Field(ge=0)
     metrics: list[StrategyMetricsSchema]
+
+
+# --- ML prediction ----------------------------------------------------------
+class PredictRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=MAX_QUERY_LEN)
+
+    @field_validator("query")
+    @classmethod
+    def _validate_query(cls, value: str) -> str:
+        return _clean_query(value)
+
+
+class PredictionSchema(BaseModel):
+    query: str
+    difficulty: str
+    difficulty_confidence: float = Field(ge=0.0, le=1.0)
+    class_probabilities: dict[str, float]
+    predicted_hops: int = Field(ge=0)
+    predicted_cost_usd: float = Field(ge=0.0)
+    recommended_strategy: str
+    features: dict[str, float]
 
 
 # --- auth -------------------------------------------------------------------

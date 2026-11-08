@@ -1,20 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-// End-to-end: log in, submit a query, and assert the trace viewer renders at
-// least one hop. Requires the backend running in local-mock mode on :8000.
-test("login, run a query, and see the hop trace", async ({ page }) => {
+// End-to-end: log in, send a chat message, and assert the agent responds with a
+// reasoning trace. Requires the backend running in local-mock mode on :8000.
+test("login, send a message, and see the agent response", async ({ page }) => {
   await page.goto("/login");
 
-  // Local demo credentials are prefilled; submit the login form.
+  // Enter local credentials and submit the login form.
+  await page.getByLabel(/username/i).fill("researcher");
+  await page.getByLabel(/password/i).fill("local-demo");
   await page.getByRole("button", { name: /sign in/i }).click();
 
-  // Land on the query page and run the default query.
-  await expect(page.getByRole("button", { name: /run query/i })).toBeVisible();
-  await page.getByRole("button", { name: /run query/i }).click();
+  // The chat composer should appear; send a question.
+  const composer = page.getByPlaceholder(/send a message/i);
+  await expect(composer).toBeVisible();
+  await composer.fill("What is the capital of France?");
+  await page.getByRole("button", { name: /^send/i }).click();
 
-  // The answer and at least one hop-trace step must render.
-  await expect(page.getByText(/Answer/i)).toBeVisible();
-  const steps = page.getByTestId("hop-trace-step");
-  await expect(steps.first()).toBeVisible({ timeout: 15_000 });
-  expect(await steps.count()).toBeGreaterThanOrEqual(1);
+  // The agent response and its reasoning trace must render.
+  await expect(page.getByText(/reasoning & trace/i)).toBeVisible({ timeout: 15_000 });
 });

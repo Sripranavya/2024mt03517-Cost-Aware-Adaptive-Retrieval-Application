@@ -4,6 +4,7 @@ import {
   compareResponseSchema,
   errorResponseSchema,
   healthResponseSchema,
+  predictionSchema,
   queryResponseSchema,
   StrategyName,
   tokenResponseSchema,
@@ -104,5 +105,12 @@ export function evaluateBatch(
   return request("/evaluate/batch", batchEvalResponseSchema, {
     method: "POST",
     body: JSON.stringify({ items, strategies }),
+  });
+}
+
+export function predictQuery(query: string) {
+  return request("/predict", predictionSchema, {
+    method: "POST",
+    body: JSON.stringify({ query }),
   });
 }

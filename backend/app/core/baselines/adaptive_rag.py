@@ -7,8 +7,8 @@ controller, this baseline commits to a depth before retrieving and never revises
 it in light of what it actually observes.
 
 The classifier is a transparent, deterministic heuristic over the query text
-(length and multi-hop cue words) so results are reproducible and defensible in
-the viva. It is intentionally simple — the research point is the *routing without
+text (length and multi-hop cue words) so results are reproducible and defensible.
+It is intentionally simple — the research point is the *routing without
 feedback* pattern, not the classifier's sophistication.
 """
 

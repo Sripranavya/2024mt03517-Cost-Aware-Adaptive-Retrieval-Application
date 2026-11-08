@@ -1,7 +1,7 @@
 r"""Bayesian-style belief update over evidence sufficiency.
 
-Formulation (documented for the viva)
--------------------------------------
+Formulation
+-----------
 Let :math:`b_t \in [0, 1]` be the prior belief that the accumulated evidence is
 *sufficient* to answer the query at hop :math:`t`. After executing an action we
 receive an observation :math:`o_{t+1}` that carries a *likelihood signal*
@@ -28,8 +28,8 @@ setting:
    the agent from paying to re-retrieve the same evidence.
 2. **Monotone flooring** - belief is clamped to :math:`[0, 1]` after every update.
 
-The update is deliberately simple and inspectable so it can be defended in the
-viva and unit-tested to high coverage.
+The update is deliberately simple and inspectable so it can be explained and
+unit-tested to high coverage.
 """
 
 from __future__ import annotations

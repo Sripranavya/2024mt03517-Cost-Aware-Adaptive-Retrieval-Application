@@ -40,7 +40,7 @@ logger = logging.getLogger("retrieval.orchestrator")
 
 @dataclass(frozen=True)
 class TraceStep:
-    """One hop of the POMDP loop, captured for the trace viewer and the viva."""
+    """One hop of the POMDP loop, captured for the trace viewer and auditing."""
 
     hop: int
     action: str
@@ -138,8 +138,11 @@ class RetrievalOrchestrator:
         acc: EvidenceAccumulator,
         cost_tracker: CostTracker,
         collected: list[Document],
-    ) -> tuple[Observation, float, str, set[str]]:
-        """Execute a non-terminal action; return (obs, cost, query_used, new_ids)."""
+    ) -> tuple[Observation, float, str, set[str], bool]:
+        """Execute a non-terminal action.
+
+        Returns (obs, cost, query_used, new_ids, injection_flagged).
+        """
         if action.type is ActionType.RETRIEVE:
             connector = self.connectors[action.source]
             result = self._retrieve_with_retry(connector, state.query)
@@ -155,17 +158,17 @@ class RetrievalOrchestrator:
             )
             if result.injection_flagged:
                 logger.warning("injection_in_trace", extra={"hop": state.hop_count})
-            return obs, cost, result.query_used, new_ids
+            return obs, cost, result.query_used, new_ids, result.injection_flagged
 
         if action.type is ActionType.REFORMULATE_QUERY:
             obs, cost = self._reformulate(state, cost_tracker)
-            return obs, cost, state.query, set()
+            return obs, cost, state.query, set(), False
 
         if action.type is ActionType.VALIDATE_EVIDENCE:
             obs, cost = self._validate(state, cost_tracker)
-            return obs, cost, state.query, set()
+            return obs, cost, state.query, set(), False
 
-        return Observation.empty(), 0.0, state.query, set()
+        return Observation.empty(), 0.0, state.query, set(), False
 
     def _reformulate(
         self, state: POMDPState, cost_tracker: CostTracker
@@ -216,7 +219,7 @@ class RetrievalOrchestrator:
                 break
 
             prior = state.evidence_confidence
-            obs, cost, query_used, new_ids = self._execute(
+            obs, cost, query_used, new_ids, injection_flagged = self._execute(
                 action, state, acc, cost_tracker, collected
             )
             posterior = self.belief_updater.update(prior, obs)
@@ -246,7 +249,7 @@ class RetrievalOrchestrator:
                     query_used=query_used,
                     new_documents=obs.new_documents,
                     duplicate_documents=obs.duplicate_documents,
-                    injection_flagged=False,
+                    injection_flagged=injection_flagged,
                 )
             )
 

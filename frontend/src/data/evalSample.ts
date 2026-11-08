@@ -1,5 +1,5 @@
-// A small labelled query set for the in-app benchmark demo. Mirrors the backend
-// bundled evaluation set (public-domain factual questions).
+// Labelled query set for the in-app benchmark. Keep identical (same order) to backend
+// EVAL_QUERIES so the dashboard reproduces the reported results.
 export const EVAL_SAMPLE: { query: string; reference: string }[] = [
   { query: "What is the capital of France?", reference: "The capital of France is Paris." },
   { query: "What is the capital of Japan?", reference: "The capital of Japan is Tokyo." },
@@ -24,7 +24,16 @@ export const EVAL_SAMPLE: { query: string; reference: string }[] = [
     reference: "The Transformer is a neural network architecture based on attention mechanisms.",
   },
   {
+    query: "How does a POMDP agent handle unobservable state?",
+    reference: "A POMDP agent maintains a belief over states and updates it with Bayes' rule.",
+  },
+  {
     query: "What charge does an electron carry?",
     reference: "An electron carries a negative electric charge.",
+  },
+  {
+    query: "What is retrieval-augmented generation?",
+    reference:
+      "RAG combines a language model with retrieval of relevant documents to improve factual accuracy.",
   },
 ];

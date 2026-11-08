@@ -5,7 +5,7 @@ Estimated USD cost uses *configurable* published per-token pricing constants (se
 ``config.py``) so nothing is hardcoded and pricing can be updated centrally.
 
 The accumulated summary is attached to every API response so the frontend can
-chart cost vs. quality across strategies — the core comparison the dissertation
+chart cost vs. quality across strategies — the core comparison this framework
 makes.
 """
 
@@ -120,4 +120,6 @@ class LatencyTimer:
         return self
 
     def __exit__(self, *exc: object) -> None:
-        self.elapsed_ms = (time.perf_counter() - self._start) * 1000.0
+        # Clamp so a non-monotonic clock (VM pauses, NTP steps) can't yield a
+        # negative latency that would later be rejected by CostTracker.record.
+        self.elapsed_ms = max(0.0, (time.perf_counter() - self._start) * 1000.0)

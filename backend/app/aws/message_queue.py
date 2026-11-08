@@ -37,9 +37,18 @@ class SQSMessageQueue(MessageQueue):
         if not queue_url:
             raise ValueError("SQS queue url is required in cloud mode")
         import boto3  # lazy import
+        from botocore.config import Config
 
         self.queue_url = queue_url
-        self._client = boto3.client("sqs", region_name=region)
+        self._client = boto3.client(
+            "sqs",
+            region_name=region,
+            config=Config(
+                connect_timeout=5,
+                read_timeout=15,
+                retries={"max_attempts": 3, "mode": "standard"},
+            ),
+        )
 
     def send(self, message: dict) -> None:
         import json

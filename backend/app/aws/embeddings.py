@@ -52,7 +52,7 @@ class HashingEmbeddingClient(EmbeddingClient):
             for index, sign in self._token_buckets(token):
                 vec[index] += sign
         norm = math.sqrt(sum(v * v for v in vec))
-        if norm == 0.0:
+        if norm <= 0.0:
             return vec
         return [v / norm for v in vec]
 
@@ -71,18 +71,86 @@ class BedrockEmbeddingClient(EmbeddingClient):
         if not model_id:
             raise ValueError("Bedrock embedding model id is required in cloud mode")
         import boto3  # imported lazily so local mode needs no boto3 runtime
+        from botocore.config import Config
 
         self.model_id = model_id
         self.dimension = dimension
-        self._client = boto3.client("bedrock-runtime", region_name=region)
+        self._client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=Config(
+                connect_timeout=5,
+                read_timeout=30,
+                retries={"max_attempts": 3, "mode": "standard"},
+            ),
+        )
 
     def embed(self, text: str) -> list[float]:
         import json
 
-        body = json.dumps({"inputText": text})
+        body = json.dumps(
+            {"inputText": text, "dimensions": self.dimension, "normalize": True}
+        )
         response = self._client.invoke_model(modelId=self.model_id, body=body)
         payload = json.loads(response["body"].read())
         return payload["embedding"]
 
     def embed_batch(self, texts: list[str]) -> list[list[float]]:
         return [self.embed(t) for t in texts]
+
+
+def _embedding_values(item: object) -> list[float]:
+    """Extract the float vector from a Vertex ``TextEmbedding`` result item."""
+    values = getattr(item, "values", item)
+    return [float(v) for v in values]
+
+
+class VertexAIEmbeddingClient(EmbeddingClient):
+    """Google Vertex AI text embeddings (cloud mode).
+
+    Uses Application Default Credentials (ADC) — never hardcoded keys. Project,
+    location, model id and dimension are injected from settings. A pre-built
+    embedding model may be injected (``model``) to keep unit tests hermetic.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        project: str,
+        location: str = "us-central1",
+        dimension: int = 768,
+        *,
+        model: object | None = None,
+    ) -> None:
+        if not model_id:
+            raise ValueError("Vertex AI embedding model id is required")
+        if dimension < 2:
+            raise ValueError("dimension must be >= 2")
+        if model is None:
+            if not project:
+                raise ValueError("VERTEX_PROJECT is required for the Vertex AI provider")
+            try:
+                import vertexai
+                from vertexai.language_models import TextEmbeddingModel
+            except ImportError as exc:  # pragma: no cover - import guard
+                raise ImportError(
+                    "The Vertex AI provider requires 'google-cloud-aiplatform'. "
+                    "Install it with: pip install 'agentic-rag-pomdp-backend[vertex]'"
+                ) from exc
+            vertexai.init(project=project, location=location)
+            model = TextEmbeddingModel.from_pretrained(model_id)
+        self.model_id = model_id
+        self.dimension = dimension
+        self._model = model
+
+    def embed(self, text: str) -> list[float]:
+        results = self._model.get_embeddings([text])
+        if not results:
+            raise ValueError("Vertex AI returned no embeddings")
+        return _embedding_values(results[0])
+
+    def embed_batch(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        results = self._model.get_embeddings(texts)
+        return [_embedding_values(item) for item in results]

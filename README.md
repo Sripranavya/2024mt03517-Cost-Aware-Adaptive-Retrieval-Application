@@ -1,6 +1,6 @@
 # A POMDP-Based Adaptive Agentic RAG Framework for Cost-Aware Multi-Source Knowledge Retrieval on AWS
 
-Reference implementation for the M.Tech dissertation of the same title. The core
+Reference implementation of the framework. The core
 contribution replaces heuristic *"when do I stop retrieving"* logic in Agentic
 RAG with a formal **Partially Observable Markov Decision Process (POMDP)**: a
 belief over evidence sufficiency, a policy that selects
@@ -43,7 +43,7 @@ with a local and a cloud implementation, selected at runtime by `USE_LOCAL_MOCKS
 | [backend/app/aws/](backend/app/aws/) | Local/cloud service implementations + factory |
 | [backend/app/api/](backend/app/api/) | FastAPI routers (query, compare, evaluate, auth, health) |
 | [backend/app/security/](backend/app/security/) | JWT auth, rate limiting, prompt-injection defense |
-| [frontend/src/](frontend/src/) | React SPA: login, query/trace viewer, comparison dashboard |
+| [frontend/src/](frontend/src/) | React SPA: login, chat with reasoning trace, comparison dashboard |
 | [infra/terraform/](infra/terraform/) | IaC modules + `lab-budget` and `full` environments |
 | [scripts/](scripts/) | `seed_corpus.py`, `run_evaluation.py` |
 | [docs/POMDP_FORMULATION.md](docs/POMDP_FORMULATION.md) | The exact math, mapped to source files |
@@ -59,8 +59,9 @@ docker-compose up --build
 # frontend: http://localhost:5173   backend/docs: http://localhost:8000/docs
 ```
 
-Log in with the prefilled demo credentials (`researcher` / `local-demo`), submit a
-query, and watch the belief-state rise across hops in the trace viewer.
+Sign in with the local demo account (its password comes from `LOCAL_DEMO_PASSWORD`;
+the login form is intentionally left empty), submit a
+query, and watch the belief-state rise across hops in the *Reasoning & trace* panel.
 
 ### Without Docker
 
@@ -121,7 +122,7 @@ npm run test:e2e                         # Playwright: login → query → trace
 
 ## Running the evaluation harness
 
-Generates the dissertation's results chapter figures — `results.csv` plus
+Generates the evaluation results — `results.csv` plus
 comparison PNG charts — from a single command, fully offline:
 
 ```bash
@@ -139,7 +140,7 @@ Example output (bundled query set):
 
 The POMDP controller matches the baselines' accuracy while using **fewer
 retrieval hops**, yielding the highest **retrieval efficiency** (accuracy per unit
-cost) — the central claim of the dissertation.
+cost) — the central claim of this work.
 
 Seed additional public documents (optional, requires network):
 

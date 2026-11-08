@@ -5,7 +5,7 @@ labelled query set in local mode (no AWS, no network), then writes:
 
 * ``results.csv`` — aggregate metrics per strategy;
 * comparison bar charts (PNG) for accuracy, latency, tokens, cost, and
-  retrieval efficiency — the figures for the dissertation's results chapter.
+  retrieval efficiency.
 
 Usage::
 
@@ -36,15 +36,26 @@ from app.config import get_settings  # noqa: E402
 
 _METRIC_FIELDS = (
     "accuracy",
+    "exact_match",
+    "f1",
+    "precision",
+    "recall",
     "avg_latency_ms",
+    "p50_latency_ms",
+    "p95_latency_ms",
     "avg_tokens",
     "avg_cost_usd",
     "avg_hops",
     "efficiency",
+    "success_rate",
 )
 _CHART_TITLES = {
-    "accuracy": "Answer Accuracy (higher is better)",
+    "accuracy": "Semantic Answer Accuracy (higher is better)",
+    "f1": "Token F1 Prediction Score (higher is better)",
+    "exact_match": "Exact Match Rate (higher is better)",
+    "success_rate": "Answer Success Rate (higher is better)",
     "avg_latency_ms": "Average Latency ms (lower is better)",
+    "p95_latency_ms": "Tail Latency p95 ms (lower is better)",
     "avg_tokens": "Average Tokens (lower is better)",
     "avg_cost_usd": "Average Cost USD (lower is better)",
     "efficiency": "Retrieval Efficiency: accuracy per cent (higher is better)",
@@ -112,17 +123,26 @@ def main() -> None:
     print(f"Evaluating {len(queries)} queries over strategies: {args.strategies}")
 
     engine = Engine(get_settings())
+    # Untimed warm-up: otherwise whichever strategy runs first pays a one-off latency penalty.
+    engine.evaluate_batch(queries, strategies=args.strategies)
     metrics = engine.evaluate_batch(queries, strategies=args.strategies)
 
     rows = [
         {
             "strategy": m.strategy,
             "accuracy": round(m.accuracy, 4),
+            "exact_match": round(m.exact_match, 4),
+            "f1": round(m.f1, 4),
+            "precision": round(m.precision, 4),
+            "recall": round(m.recall, 4),
             "avg_latency_ms": round(m.avg_latency_ms, 2),
+            "p50_latency_ms": round(m.p50_latency_ms, 2),
+            "p95_latency_ms": round(m.p95_latency_ms, 2),
             "avg_tokens": round(m.avg_tokens, 1),
             "avg_cost_usd": round(m.avg_cost_usd, 6),
             "avg_hops": round(m.avg_hops, 2),
             "efficiency": round(m.efficiency, 4),
+            "success_rate": round(m.success_rate, 4),
         }
         for m in metrics
     ]

@@ -13,4 +13,4 @@ The backend verifies RS256 tokens issued by this pool against its JWKS.
 ## Cost notes
 
 Cognito is **free** up to 50,000 monthly active users — effectively **US$0** for
-a dissertation demo.
+a demo.

@@ -120,13 +120,53 @@ class OpenSearchVectorStore(VectorStoreClient):
     def __init__(self, endpoint: str, index: str, dimension: int, region: str) -> None:
         if not endpoint:
             raise ValueError("OpenSearch endpoint is required in cloud mode")
-        from opensearchpy import OpenSearch  # lazy import
+        import boto3  # lazy imports so local mode needs neither package
+        from opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection
 
         self.index = index
         self.dimension = dimension
-        self._client = OpenSearch(hosts=[endpoint])
+        host = endpoint.removeprefix("https://").removeprefix("http://").rstrip("/")
+        auth = AWSV4SignerAuth(boto3.Session().get_credentials(), region, "es")
+        self._client = OpenSearch(
+            hosts=[{"host": host, "port": 443}],
+            http_auth=auth,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            timeout=30,
+        )
+        self._index_ready = False
+
+    def _ensure_index(self) -> None:
+        if self._index_ready:
+            return
+        if not self._client.indices.exists(index=self.index):
+            self._client.indices.create(
+                index=self.index,
+                body={
+                    "settings": {"index": {"knn": True}},
+                    "mappings": {
+                        "properties": {
+                            "embedding": {
+                                "type": "knn_vector",
+                                "dimension": self.dimension,
+                                "method": {
+                                    "name": "hnsw",
+                                    "space_type": "cosinesimil",
+                                    "engine": "lucene",
+                                },
+                            },
+                            "text": {"type": "text"},
+                            "source": {"type": "keyword"},
+                            "title": {"type": "text"},
+                        }
+                    },
+                },
+            )
+        self._index_ready = True
 
     def add(self, documents: list[Document], embeddings: list[list[float]]) -> None:
+        self._ensure_index()
         for doc, emb in zip(documents, embeddings, strict=False):
             self._client.index(
                 index=self.index,
@@ -138,8 +178,10 @@ class OpenSearchVectorStore(VectorStoreClient):
                     "embedding": emb,
                 },
             )
+        self._client.indices.refresh(index=self.index)
 
     def search(self, query_embedding: list[float], k: int) -> list[Document]:
+        self._ensure_index()
         body = {
             "size": k,
             "query": {"knn": {"embedding": {"vector": query_embedding, "k": k}}},
@@ -160,4 +202,5 @@ class OpenSearchVectorStore(VectorStoreClient):
         return results
 
     def count(self) -> int:
+        self._ensure_index()
         return int(self._client.count(index=self.index)["count"])

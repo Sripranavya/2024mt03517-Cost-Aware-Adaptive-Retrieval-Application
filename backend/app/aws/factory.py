@@ -1,16 +1,23 @@
 """Factory selecting local vs. cloud implementations from settings.
 
-A single switch — ``Settings.use_local_mocks`` — chooses every implementation, so
-the rest of the app depends only on the interface Protocols. Cloud constructors
-read all identifiers from settings (never hardcoded) and rely on the default AWS
-credential chain.
+``Settings.use_local_mocks`` chooses the storage/queue/vector implementations, so
+the rest of the app depends only on the interface Protocols. The LLM and
+embedding providers can additionally be pinned via ``LLM_PROVIDER`` /
+``EMBEDDING_PROVIDER`` (``auto`` | ``local`` | ``bedrock`` | ``vertex``), so the
+strategies can run on Google Vertex AI (Gemini) while everything else stays
+local. Cloud constructors read all identifiers from settings (never hardcoded)
+and rely on the provider's default credential chain (AWS chain / Google ADC).
 """
 
 from __future__ import annotations
 
 from functools import lru_cache
 
-from app.aws.embeddings import BedrockEmbeddingClient, HashingEmbeddingClient
+from app.aws.embeddings import (
+    BedrockEmbeddingClient,
+    HashingEmbeddingClient,
+    VertexAIEmbeddingClient,
+)
 from app.aws.interfaces import (
     EmbeddingClient,
     LLMClient,
@@ -19,7 +26,12 @@ from app.aws.interfaces import (
     StateStore,
     VectorStoreClient,
 )
-from app.aws.llm import BedrockLLMClient, MockLLMClient
+from app.aws.llm import (
+    BedrockLLMClient,
+    CachingBudgetLLMClient,
+    MockLLMClient,
+    VertexAILLMClient,
+)
 from app.aws.message_queue import InProcessMessageQueue, SQSMessageQueue
 from app.aws.object_store import LocalObjectStore, S3ObjectStore
 from app.aws.state_store import DynamoDBStateStore, SQLiteStateStore
@@ -31,19 +43,47 @@ LOCAL_EMBED_DIM = 256
 
 
 def build_embedding_client(settings: Settings) -> EmbeddingClient:
-    if settings.use_local_mocks:
+    provider = settings.resolved_embedding_provider()
+    if provider == "local":
         return HashingEmbeddingClient(dimension=LOCAL_EMBED_DIM)
+    if provider == "vertex":
+        return VertexAIEmbeddingClient(
+            model_id=settings.vertex_embed_model,
+            project=settings.vertex_project,
+            location=settings.vertex_location,
+            dimension=settings.vertex_embed_dimension,
+        )
     return BedrockEmbeddingClient(
-        model_id=settings.bedrock_embed_model_id, region=settings.aws_region
+        model_id=settings.bedrock_embed_model_id,
+        region=settings.aws_region,
+        dimension=settings.bedrock_embed_dimension,
     )
 
 
 def build_llm_client(settings: Settings) -> LLMClient:
-    if settings.use_local_mocks:
+    provider = settings.resolved_llm_provider()
+    if provider == "local":
         return MockLLMClient()
-    return BedrockLLMClient(
-        model_id=settings.bedrock_model_id, region=settings.aws_region
-    )
+    if provider == "vertex":
+        llm: LLMClient = VertexAILLMClient(
+            model_id=settings.vertex_llm_model,
+            project=settings.vertex_project,
+            location=settings.vertex_location,
+            temperature=settings.vertex_temperature,
+        )
+    else:
+        llm = BedrockLLMClient(
+            model_id=settings.bedrock_model_id, region=settings.aws_region
+        )
+    if settings.llm_cache_dir or settings.max_budget_usd > 0:
+        return CachingBudgetLLMClient(
+            llm,
+            settings.llm_cache_dir or "./.localdata/llm_cache",
+            settings.max_budget_usd,
+            settings.price_per_1k_input_tokens,
+            settings.price_per_1k_output_tokens,
+        )
+    return llm
 
 
 def build_vector_store(settings: Settings, dimension: int) -> VectorStoreClient:

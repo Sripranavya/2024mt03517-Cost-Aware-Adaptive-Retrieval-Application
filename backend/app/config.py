@@ -12,6 +12,10 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Built-in local-only defaults that must never be used in a real environment.
+_DEV_JWT_FALLBACK = "local-development-only-not-a-real-secret"
+_DEMO_LOGIN_FALLBACK = "local-demo"
+
 
 class Settings(BaseSettings):
     """Typed, validated application settings loaded from the environment."""
@@ -27,6 +31,11 @@ class Settings(BaseSettings):
     use_local_mocks: bool = Field(default=True, alias="USE_LOCAL_MOCKS")
     app_env: str = Field(default="local", alias="APP_ENV")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+    # --- Model provider selection (overrides the local/cloud default) ---
+    # "auto" -> local when USE_LOCAL_MOCKS else bedrock; or force local|bedrock|vertex.
+    llm_provider: str = Field(default="auto", alias="LLM_PROVIDER")
+    embedding_provider: str = Field(default="auto", alias="EMBEDDING_PROVIDER")
 
     # --- CORS ---
     cors_allow_origins: str = Field(
@@ -70,22 +79,46 @@ class Settings(BaseSettings):
     sqs_queue_url: str = Field(default="", alias="SQS_QUEUE_URL")
     sns_topic_arn: str = Field(default="", alias="SNS_TOPIC_ARN")
 
+    # --- Google Vertex AI (Gemini) provider ---
+    vertex_project: str = Field(default="", alias="VERTEX_PROJECT")
+    vertex_location: str = Field(default="us-central1", alias="VERTEX_LOCATION")
+    vertex_llm_model: str = Field(default="gemini-1.5-flash-002", alias="VERTEX_LLM_MODEL")
+    vertex_embed_model: str = Field(default="text-embedding-004", alias="VERTEX_EMBED_MODEL")
+    vertex_embed_dimension: int = Field(
+        default=768, ge=2, le=4096, alias="VERTEX_EMBED_DIMENSION"
+    )
+    vertex_temperature: float = Field(
+        default=0.0, ge=0.0, le=2.0, alias="VERTEX_TEMPERATURE"
+    )
+
+    # --- Cloud spend safeguards ---
+    bedrock_embed_dimension: int = Field(
+        default=256, ge=2, le=1024, alias="BEDROCK_EMBED_DIMENSION"
+    )
+    max_budget_usd: float = Field(default=0.0, ge=0.0, alias="MAX_BUDGET_USD")
+    llm_cache_dir: str = Field(default="", alias="LLM_CACHE_DIR")
+
     # --- Cognito ---
     cognito_user_pool_id: str = Field(default="", alias="COGNITO_USER_POOL_ID")
     cognito_app_client_id: str = Field(default="", alias="COGNITO_APP_CLIENT_ID")
-    cognito_region: str = Field(default="us-east-1", alias="COGNITO_REGION")
+    cognito_region: str = Field(default="", alias="COGNITO_REGION")
 
     # --- Local auth ---
     local_jwt_secret: str = Field(
-        default="local-development-only-not-a-real-secret", alias="LOCAL_JWT_SECRET"
+        default=_DEV_JWT_FALLBACK, alias="LOCAL_JWT_SECRET"
     )
     local_jwt_issuer: str = Field(default="agentic-rag-local", alias="LOCAL_JWT_ISSUER")
     jwt_audience: str = Field(default="agentic-rag-api", alias="JWT_AUDIENCE")
-    local_demo_password: str = Field(default="local-demo", alias="LOCAL_DEMO_PASSWORD")
+    local_demo_password: str = Field(
+        default=_DEMO_LOGIN_FALLBACK, alias="LOCAL_DEMO_PASSWORD"
+    )
     jwt_expiry_seconds: int = Field(default=3600, ge=60, le=86400, alias="JWT_EXPIRY_SECONDS")
 
     # --- Rate limiting ---
     rate_limit_per_minute: int = Field(default=30, ge=1, alias="RATE_LIMIT_PER_MINUTE")
+    max_concurrent_per_user: int = Field(
+        default=4, ge=1, le=100, alias="MAX_CONCURRENT_PER_USER"
+    )
 
     # --- Local storage ---
     local_data_dir: str = Field(default="./.localdata", alias="LOCAL_DATA_DIR")
@@ -101,9 +134,42 @@ class Settings(BaseSettings):
             raise ValueError(f"LOG_LEVEL must be one of {sorted(allowed)}")
         return upper
 
+    @field_validator("llm_provider", "embedding_provider")
+    @classmethod
+    def _check_provider(cls, value: str) -> str:
+        allowed = {"auto", "local", "bedrock", "vertex"}
+        lowered = value.lower()
+        if lowered not in allowed:
+            raise ValueError(f"provider must be one of {sorted(allowed)}")
+        return lowered
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
+    def resolved_llm_provider(self) -> str:
+        """Concrete LLM provider after resolving the "auto" default."""
+        if self.llm_provider != "auto":
+            return self.llm_provider
+        return "local" if self.use_local_mocks else "bedrock"
+
+    def resolved_embedding_provider(self) -> str:
+        """Concrete embedding provider after resolving the "auto" default."""
+        if self.embedding_provider != "auto":
+            return self.embedding_provider
+        return "local" if self.use_local_mocks else "bedrock"
+
+    def validate_provider_requirements(self) -> None:
+        """Fail fast if a Vertex AI provider is selected without a GCP project."""
+        uses_vertex = "vertex" in (
+            self.resolved_llm_provider(),
+            self.resolved_embedding_provider(),
+        )
+        if uses_vertex and not self.vertex_project:
+            raise RuntimeError(
+                "A Vertex AI provider is selected but VERTEX_PROJECT is empty. "
+                "Set VERTEX_PROJECT to your Google Cloud project id."
+            )
 
     def validate_cloud_requirements(self) -> None:
         """Fail fast if cloud mode is requested but required identifiers are absent.
@@ -126,6 +192,34 @@ class Settings(BaseSettings):
             raise RuntimeError(
                 "Cloud mode is enabled (USE_LOCAL_MOCKS=false) but these required "
                 f"environment variables are missing or empty: {', '.join(missing)}"
+            )
+
+    def validate_security(self) -> None:
+        """Fail fast on insecure defaults or unsafe CORS outside local/dev.
+
+        Guards against the common footgun of shipping the built-in demo secret or
+        a wildcard CORS origin (which is incompatible with credentialed requests)
+        to a real environment.
+        """
+        if "*" in self.cors_origins_list:
+            raise RuntimeError(
+                "CORS_ALLOW_ORIGINS must not contain '*' because credentialed "
+                "requests are enabled; list explicit origins instead."
+            )
+        local_envs = {"local", "dev", "development", "test", "ci"}
+        if self.app_env.lower() in local_envs:
+            return
+        problems: list[str] = []
+        if self.use_local_mocks:
+            if self.local_jwt_secret == _DEV_JWT_FALLBACK:
+                problems.append("LOCAL_JWT_SECRET is still the built-in default")
+            if self.local_demo_password == _DEMO_LOGIN_FALLBACK:
+                problems.append("LOCAL_DEMO_PASSWORD is still the built-in default")
+        if problems:
+            raise RuntimeError(
+                f"Insecure configuration for APP_ENV={self.app_env}: "
+                + "; ".join(problems)
+                + ". Override these via environment variables."
             )
 
 

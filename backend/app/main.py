@@ -14,11 +14,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
-from app.api.routers import auth, evaluate, health, query
+from app.api.middleware import RequestContextMiddleware, SecurityHeadersMiddleware
+from app.api.routers import auth, evaluate, health, predict, query
 from app.config import get_settings
 from app.logging_config import configure_logging
 from app.schemas import ErrorResponse
@@ -33,6 +35,10 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
     # Fail fast if cloud mode is missing required identifiers.
     settings.validate_cloud_requirements()
+    # Fail fast if a Vertex AI provider is selected without a GCP project.
+    settings.validate_provider_requirements()
+    # Fail fast on insecure defaults / unsafe CORS outside local environments.
+    settings.validate_security()
     logger.info(
         "startup",
         extra={"mode": "local" if settings.use_local_mocks else "cloud"},
@@ -62,14 +68,29 @@ def create_app() -> FastAPI:
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
 
+    # Compress large JSON responses (traces, batch metrics).
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+    # OWASP security headers on every response (HSTS only when TLS-fronted).
+    # The interactive docs pages get their own CSP in local mode only.
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        enable_hsts=not settings.use_local_mocks,
+        allow_docs_ui=settings.use_local_mocks,
+    )
+
     # CORS locked to the configured frontend origin(s) — never '*'.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+        expose_headers=["X-Request-ID", "X-Process-Time-Ms"],
     )
+
+    # Outermost: correlation id + structured access logging + request timing.
+    app.add_middleware(RequestContextMiddleware)
 
     # --- consistent structured error responses (never raw stack traces) ---
     @app.exception_handler(RateLimitExceeded)
@@ -92,7 +113,7 @@ def create_app() -> FastAPI:
             for err in exc.errors()
         ]
         return _error(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            422,
             "validation_error",
             "Request validation failed.",
             {"errors": safe_errors},
@@ -121,6 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=api_prefix)
     app.include_router(query.router, prefix=api_prefix)
     app.include_router(evaluate.router, prefix=api_prefix)
+    app.include_router(predict.router, prefix=api_prefix)
     return app
 
 

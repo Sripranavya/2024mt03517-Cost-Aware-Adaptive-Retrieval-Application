@@ -2,7 +2,7 @@
 
 This document states the exact mathematical formulation implemented and points to
 the corresponding source file/function for each element — so the system can be
-explained (and screen-shared) in the viva directly from the code.
+explained directly from the code.
 
 ---
 
@@ -250,4 +250,4 @@ answer ← LLM(build_answer_prompt(query, evidence))   # injection-fenced prompt
 ```
 
 The per-hop `TraceStep` (state, action, observation, reward, belief transition) is
-what the frontend trace viewer renders and what you screen-share in the viva.
+what the chat page's *Reasoning & trace* panel renders.

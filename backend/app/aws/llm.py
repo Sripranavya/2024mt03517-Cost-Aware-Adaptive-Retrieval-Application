@@ -47,7 +47,7 @@ def _is_boilerplate(sentence: str) -> bool:
     lowered = sentence.strip().lower()
     if not lowered:
         return True
-    if lowered.startswith("question:") or lowered.startswith("answer:"):
+    if lowered.startswith(("question:", "answer:")):
         return True
     if _FENCE_RE.search(sentence) or _HEADER_RE.match(sentence):
         return True
@@ -117,26 +117,167 @@ class BedrockLLMClient(LLMClient):
         if not model_id:
             raise ValueError("Bedrock model id is required in cloud mode")
         import boto3  # lazy import so local mode needs no boto3 runtime
+        from botocore.config import Config
 
         self.model_id = model_id
-        self._client = boto3.client("bedrock-runtime", region_name=region)
+        self._client = boto3.client(
+            "bedrock-runtime",
+            region_name=region,
+            config=Config(
+                connect_timeout=5,
+                read_timeout=60,
+                retries={"max_attempts": 3, "mode": "standard"},
+            ),
+        )
 
     def generate(self, prompt: str, *, max_tokens: int = 512) -> LLMResponse:
-        import json
-
-        body = json.dumps(
-            {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": max_tokens,
-                "messages": [{"role": "user", "content": prompt}],
-            }
+        # Converse works with inference-profile ids (us./global. prefixes).
+        response = self._client.converse(
+            modelId=self.model_id,
+            messages=[{"role": "user", "content": [{"text": prompt}]}],
+            inferenceConfig={"maxTokens": max_tokens, "temperature": 0},
         )
-        response = self._client.invoke_model(modelId=self.model_id, body=body)
-        payload = json.loads(response["body"].read())
-        text = payload["content"][0]["text"]
-        usage = payload.get("usage", {})
+        # Defensive parsing: error envelopes must not crash the request.
+        text = ""
+        content = (response.get("output", {}).get("message", {}) or {}).get("content") or []
+        if content and isinstance(content[0], dict):
+            text = str(content[0].get("text", "") or "")
+        if not text:
+            text = "I could not find sufficient evidence to answer the question."
+        usage = response.get("usage") or {}
         return LLMResponse(
             text=text,
-            input_tokens=int(usage.get("input_tokens", count_tokens(prompt))),
-            output_tokens=int(usage.get("output_tokens", count_tokens(text))),
+            input_tokens=int(usage.get("inputTokens", count_tokens(prompt))),
+            output_tokens=int(usage.get("outputTokens", count_tokens(text))),
         )
+
+
+class BudgetExceededError(RuntimeError):
+    """Raised when logged LLM spend passes the configured cap."""
+
+
+class CachingBudgetLLMClient(LLMClient):
+    """Wraps an LLM with a prompt-hash disk cache and a hard USD spend cap."""
+
+    def __init__(
+        self,
+        inner: LLMClient,
+        cache_dir: str,
+        max_budget_usd: float,
+        price_in_per_1k: float,
+        price_out_per_1k: float,
+    ) -> None:
+        from pathlib import Path
+
+        self.inner = inner
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.max_budget_usd = max_budget_usd
+        self.price_in = price_in_per_1k
+        self.price_out = price_out_per_1k
+        self.spent_usd = 0.0
+        self.calls = 0
+
+    def generate(self, prompt: str, *, max_tokens: int = 512) -> LLMResponse:
+        import hashlib
+        import json
+
+        key = hashlib.sha256(f"{max_tokens}:{prompt}".encode()).hexdigest()
+        path = self.cache_dir / f"{key}.json"
+        if path.exists():
+            return LLMResponse(**json.loads(path.read_text(encoding="utf-8")))
+        if self.max_budget_usd > 0 and self.spent_usd >= self.max_budget_usd:
+            raise BudgetExceededError(
+                f"LLM spend ${self.spent_usd:.4f} reached cap ${self.max_budget_usd:.2f}"
+            )
+        resp = self.inner.generate(prompt, max_tokens=max_tokens)
+        self.calls += 1
+        self.spent_usd += (
+            resp.input_tokens / 1000 * self.price_in
+            + resp.output_tokens / 1000 * self.price_out
+        )
+        path.write_text(
+            json.dumps(
+                {
+                    "text": resp.text,
+                    "input_tokens": resp.input_tokens,
+                    "output_tokens": resp.output_tokens,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return resp
+
+
+def _extract_vertex_text(response: object) -> str:
+    """Pull answer text from a Vertex ``GenerationResponse`` defensively.
+
+    ``response.text`` raises if the candidate was blocked or has no parts, so we
+    guard it and fall back to walking candidates/parts, returning "" if empty.
+    """
+    try:
+        text = getattr(response, "text", None)
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    except (ValueError, AttributeError):
+        pass
+    for candidate in getattr(response, "candidates", None) or []:
+        content = getattr(candidate, "content", None)
+        for part in getattr(content, "parts", None) or []:
+            part_text = getattr(part, "text", None)
+            if isinstance(part_text, str) and part_text.strip():
+                return part_text.strip()
+    return ""
+
+
+class VertexAILLMClient(LLMClient):
+    """Google Vertex AI (Gemini) text generation (cloud mode).
+
+    Uses Application Default Credentials (ADC) — never hardcoded keys. Project,
+    location and model id are injected from settings. A pre-built generative
+    model may be injected (``model``) to keep unit tests hermetic and offline.
+    """
+
+    def __init__(
+        self,
+        model_id: str,
+        project: str,
+        location: str = "us-central1",
+        *,
+        temperature: float = 0.0,
+        model: object | None = None,
+    ) -> None:
+        if not model_id:
+            raise ValueError("Vertex AI model id is required")
+        if model is None:
+            if not project:
+                raise ValueError("VERTEX_PROJECT is required for the Vertex AI provider")
+            try:
+                import vertexai
+                from vertexai.generative_models import GenerativeModel
+            except ImportError as exc:  # pragma: no cover - import guard
+                raise ImportError(
+                    "The Vertex AI provider requires 'google-cloud-aiplatform'. "
+                    "Install it with: pip install 'agentic-rag-pomdp-backend[vertex]'"
+                ) from exc
+            vertexai.init(project=project, location=location)
+            model = GenerativeModel(model_id)
+        self.model_id = model_id
+        self.temperature = temperature
+        self._model = model
+
+    def generate(self, prompt: str, *, max_tokens: int = 512) -> LLMResponse:
+        response = self._model.generate_content(
+            prompt,
+            generation_config={
+                "max_output_tokens": max_tokens,
+                "temperature": self.temperature,
+            },
+        )
+        text = _extract_vertex_text(response)
+        if not text:
+            text = "I could not find sufficient evidence to answer the question."
+        usage = getattr(response, "usage_metadata", None)
+        input_tokens = int(getattr(usage, "prompt_token_count", 0) or 0) or count_tokens(prompt)
+        output_tokens = int(getattr(usage, "candidates_token_count", 0) or 0) or count_tokens(text)
+        return LLMResponse(text=text, input_tokens=input_tokens, output_tokens=output_tokens)
