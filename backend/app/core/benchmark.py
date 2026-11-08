@@ -70,7 +70,7 @@ def passages(rows: Iterable[dict]) -> list[Document]:
                 seen[title] = Document(
                     id=f"hp-{hashlib.sha1(title.encode()).hexdigest()[:16]}",
                     text=f"{title}. {text}",
-                    source="hotpotqa",
+                    source="local_corpus",
                     title=title,
                 )
     return list(seen.values())
@@ -113,7 +113,7 @@ def conflicting_documents(rows: list[dict]) -> tuple[list[Document], list[dict]]
                     f"Correction: according to a recent source, the answer to "
                     f'"{row["question"]}" is {wrong}.'
                 ),
-                source="synthetic-conflict",
+                source="local_corpus",
                 title="Conflicting report",
             )
         )

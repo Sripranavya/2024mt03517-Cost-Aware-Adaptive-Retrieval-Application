@@ -71,6 +71,7 @@ def test_from_hf_row_matches_original_layout() -> None:
     assert row["_id"] == "x1" and row["level"] == "hard"
     assert row["context"] == [["T1", ["a.", "b."]], ["T2", ["c."]]]
     assert [d.title for d in passages([row])] == ["T1", "T2"]
+    assert {d.source for d in passages([row])} == {"local_corpus"}
     assert categorize(row) == ["complex", "multi_hop"]
 
 
@@ -81,6 +82,21 @@ def test_conflicting_documents_contradict_the_reference() -> None:
     assert "Answer 1" in docs[0].text and "Answer 0" not in docs[0].text
     assert items[0]["reference"] == "Answer 0"
     assert conflicting_documents(rows[:1]) == ([], [])
+
+
+def test_benchmark_passages_are_retrievable_by_the_engine() -> None:
+    from app.config import Settings
+    from app.core.engine import Engine
+
+    engine = Engine(
+        Settings(USE_LOCAL_MOCKS=True, SQLITE_PATH=":memory:", SEED_SAMPLE_CORPUS=False)
+    )
+    row = _row(1)
+    row["context"] = [["Eiffel Tower", ["The Eiffel Tower is in Paris."]]]
+    docs = passages([row])
+    engine.vector_store.add(docs, engine.embedder.embed_batch([d.text for d in docs]))
+    result = engine.run_query("Where is the Eiffel Tower?", "fixed")
+    assert any(d.title == "Eiffel Tower" for d in result.documents_used)
 
 
 def test_short_answer_instruction_is_opt_in() -> None:
