@@ -63,6 +63,8 @@ $frontendCmd = "Set-Location '$root\frontend'; npm run dev"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $frontendCmd
 
 Set-Clipboard -Value $demoPassword
+# Temp handoff for local automated tests (read then deleted by the test runner).
+Set-Content -Path (Join-Path $env:TEMP "pomdp_live_pw.txt") -Value $demoPassword -NoNewline
 Write-Host ""
 Write-Host "Backend  : http://localhost:8000/docs" -ForegroundColor Cyan
 Write-Host "Frontend : http://localhost:5173" -ForegroundColor Cyan
