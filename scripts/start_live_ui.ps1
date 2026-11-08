@@ -51,6 +51,7 @@ $env:LIVE_SOURCES = "false"; $env:SEED_SAMPLE_CORPUS = "false"; $env:SINGLE_SOUR
 $env:ITERATIVE_RETRIEVAL = "true"; $env:LLM_ACTIONS = "true"; $env:SHORT_ANSWERS = "true"
 $env:ANSWER_DOCS = "8"; $env:REWARD_COST_WEIGHT = "40"; $env:RETRIEVAL_COST_USD = "0.0003"
 $env:MAX_BUDGET_USD = "5"
+$env:PRICE_PER_1K_INPUT_TOKENS = "0.001"; $env:PRICE_PER_1K_OUTPUT_TOKENS = "0.005"
 
 $demoPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 14 | ForEach-Object { [char]$_ })
 $env:LOCAL_DEMO_PASSWORD = $demoPassword
