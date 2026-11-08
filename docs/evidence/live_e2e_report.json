@@ -1,0 +1,510 @@
+{
+  "health": {
+    "status": "ok",
+    "mode": "cloud",
+    "strategies": [
+      "pomdp",
+      "pomdp_vi",
+      "pomdp_quality",
+      "fixed",
+      "fixed_1",
+      "fixed_2",
+      "self_rag",
+      "adaptive",
+      "crag",
+      "flare",
+      "rag_fusion",
+      "step_back",
+      "hyde"
+    ],
+    "corpus_size": 800
+  },
+  "rows": [
+    {
+      "question": "Eddie Jemison had a role in the television series \"IZombie\", which premiered on what date?",
+      "in_index": true,
+      "strategy": "pomdp",
+      "answer": "March 17, 2015",
+      "hops": 4,
+      "belief": 0.295,
+      "tokens": 2122,
+      "usd": 0.00347,
+      "llm_calls": 8,
+      "server_ms": 12411.3,
+      "wall_ms": 12539.2,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Eddie Jemison had a role in the television series \"IZombie\", which premiered on what date?",
+      "in_index": true,
+      "strategy": "fixed",
+      "answer": "March 17, 2015",
+      "hops": 3,
+      "belief": 0.315,
+      "tokens": 1621,
+      "usd": 0.002633,
+      "llm_calls": 6,
+      "server_ms": 7531.4,
+      "wall_ms": 7578.1,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Eddie Jemison had a role in the television series \"IZombie\", which premiered on what date?",
+      "in_index": true,
+      "strategy": "self_rag",
+      "answer": "March 17, 2015",
+      "hops": 6,
+      "belief": 0.0,
+      "tokens": 2077,
+      "usd": 0.003149,
+      "llm_calls": 7,
+      "server_ms": 5476.6,
+      "wall_ms": 5531.3,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE",
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE",
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "Eddie Jemison had a role in the television series \"IZombie\", which premiered on what date?",
+      "in_index": true,
+      "strategy": "adaptive",
+      "answer": "March 17, 2015",
+      "hops": 1,
+      "belief": 0.355,
+      "tokens": 716,
+      "usd": 0.001076,
+      "llm_calls": 3,
+      "server_ms": 2322.2,
+      "wall_ms": 2353.8,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "What is the hometown of Duck Down Music artist and complex rapper Pharaohe Monch?",
+      "in_index": true,
+      "strategy": "pomdp",
+      "answer": "Queens, New York",
+      "hops": 3,
+      "belief": 0.469,
+      "tokens": 2419,
+      "usd": 0.003467,
+      "llm_calls": 6,
+      "server_ms": 5179.2,
+      "wall_ms": 5213.3,
+      "docs": 5,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "What is the hometown of Duck Down Music artist and complex rapper Pharaohe Monch?",
+      "in_index": true,
+      "strategy": "fixed",
+      "answer": "Queens, New York",
+      "hops": 3,
+      "belief": 0.573,
+      "tokens": 2766,
+      "usd": 0.003802,
+      "llm_calls": 6,
+      "server_ms": 4690.1,
+      "wall_ms": 4720.3,
+      "docs": 6,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "What is the hometown of Duck Down Music artist and complex rapper Pharaohe Monch?",
+      "in_index": true,
+      "strategy": "self_rag",
+      "answer": "Queens, New York",
+      "hops": 2,
+      "belief": 0.717,
+      "tokens": 1706,
+      "usd": 0.002182,
+      "llm_calls": 3,
+      "server_ms": 2364.7,
+      "wall_ms": 2410.4,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "What is the hometown of Duck Down Music artist and complex rapper Pharaohe Monch?",
+      "in_index": true,
+      "strategy": "adaptive",
+      "answer": "Queens, New York",
+      "hops": 3,
+      "belief": 0.463,
+      "tokens": 2599,
+      "usd": 0.003667,
+      "llm_calls": 7,
+      "server_ms": 6147.7,
+      "wall_ms": 6203.4,
+      "docs": 5,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Are Hot Rod and The Memory of Our People both magazines?",
+      "in_index": true,
+      "strategy": "pomdp",
+      "answer": "Yes",
+      "hops": 2,
+      "belief": 0.494,
+      "tokens": 1904,
+      "usd": 0.002776,
+      "llm_calls": 4,
+      "server_ms": 3292.5,
+      "wall_ms": 3332.5,
+      "docs": 8,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Are Hot Rod and The Memory of Our People both magazines?",
+      "in_index": true,
+      "strategy": "fixed",
+      "answer": "Yes",
+      "hops": 3,
+      "belief": 0.48,
+      "tokens": 2236,
+      "usd": 0.003664,
+      "llm_calls": 6,
+      "server_ms": 5152.7,
+      "wall_ms": 5207.8,
+      "docs": 8,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Are Hot Rod and The Memory of Our People both magazines?",
+      "in_index": true,
+      "strategy": "self_rag",
+      "answer": "Yes",
+      "hops": 2,
+      "belief": 0.703,
+      "tokens": 1135,
+      "usd": 0.001611,
+      "llm_calls": 3,
+      "server_ms": 2125.5,
+      "wall_ms": 2155.6,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "Are Hot Rod and The Memory of Our People both magazines?",
+      "in_index": true,
+      "strategy": "adaptive",
+      "answer": "Yes",
+      "hops": 3,
+      "belief": 0.483,
+      "tokens": 2469,
+      "usd": 0.003917,
+      "llm_calls": 7,
+      "server_ms": 5936.2,
+      "wall_ms": 5970.5,
+      "docs": 8,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Which documentary film came out first The Last Lions or Prophet's Prey ?",
+      "in_index": true,
+      "strategy": "pomdp",
+      "answer": "The Last Lions",
+      "hops": 2,
+      "belief": 0.514,
+      "tokens": 1805,
+      "usd": 0.002461,
+      "llm_calls": 4,
+      "server_ms": 3594.9,
+      "wall_ms": 3643.3,
+      "docs": 6,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Which documentary film came out first The Last Lions or Prophet's Prey ?",
+      "in_index": true,
+      "strategy": "fixed",
+      "answer": "The Last Lions",
+      "hops": 3,
+      "belief": 0.511,
+      "tokens": 2593,
+      "usd": 0.003613,
+      "llm_calls": 6,
+      "server_ms": 4729.8,
+      "wall_ms": 4768.8,
+      "docs": 7,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Which documentary film came out first The Last Lions or Prophet's Prey ?",
+      "in_index": true,
+      "strategy": "self_rag",
+      "answer": "The Last Lions",
+      "hops": 2,
+      "belief": 0.712,
+      "tokens": 1464,
+      "usd": 0.001932,
+      "llm_calls": 3,
+      "server_ms": 2164.7,
+      "wall_ms": 2191.9,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "Which documentary film came out first The Last Lions or Prophet's Prey ?",
+      "in_index": true,
+      "strategy": "adaptive",
+      "answer": "The Last Lions",
+      "hops": 1,
+      "belief": 0.354,
+      "tokens": 1031,
+      "usd": 0.001375,
+      "llm_calls": 3,
+      "server_ms": 2175.6,
+      "wall_ms": 2202.2,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Of what ethnicity is the founder of the Orchestra which debuted on January 1, 1988?",
+      "in_index": true,
+      "strategy": "pomdp",
+      "answer": "Dutch",
+      "hops": 2,
+      "belief": 0.437,
+      "tokens": 1503,
+      "usd": 0.002159,
+      "llm_calls": 4,
+      "server_ms": 3845.4,
+      "wall_ms": 3894.1,
+      "docs": 7,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Of what ethnicity is the founder of the Orchestra which debuted on January 1, 1988?",
+      "in_index": true,
+      "strategy": "fixed",
+      "answer": "Dutch",
+      "hops": 3,
+      "belief": 0.417,
+      "tokens": 2116,
+      "usd": 0.003108,
+      "llm_calls": 6,
+      "server_ms": 4357.3,
+      "wall_ms": 4408.2,
+      "docs": 7,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "Of what ethnicity is the founder of the Orchestra which debuted on January 1, 1988?",
+      "in_index": true,
+      "strategy": "self_rag",
+      "answer": "Dutch",
+      "hops": 2,
+      "belief": 0.644,
+      "tokens": 1110,
+      "usd": 0.001586,
+      "llm_calls": 3,
+      "server_ms": 2077.3,
+      "wall_ms": 2112.1,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "Of what ethnicity is the founder of the Orchestra which debuted on January 1, 1988?",
+      "in_index": true,
+      "strategy": "adaptive",
+      "answer": "Dutch",
+      "hops": 3,
+      "belief": 0.417,
+      "tokens": 2211,
+      "usd": 0.003223,
+      "llm_calls": 7,
+      "server_ms": 5204.2,
+      "wall_ms": 5257.3,
+      "docs": 7,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "How does photosynthesis convert light into chemical energy?",
+      "in_index": false,
+      "strategy": "pomdp",
+      "answer": "Insufficient evidence.",
+      "hops": 4,
+      "belief": 0.238,
+      "tokens": 2620,
+      "usd": 0.004004,
+      "llm_calls": 8,
+      "server_ms": 6264.0,
+      "wall_ms": 6303.2,
+      "docs": 5,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "How does photosynthesis convert light into chemical energy?",
+      "in_index": false,
+      "strategy": "fixed",
+      "answer": "Insufficient evidence.",
+      "hops": 3,
+      "belief": 0.258,
+      "tokens": 2061,
+      "usd": 0.003093,
+      "llm_calls": 6,
+      "server_ms": 6168.3,
+      "wall_ms": 6208.7,
+      "docs": 5,
+      "actions": [
+        "RETRIEVE",
+        "RETRIEVE",
+        "RETRIEVE"
+      ]
+    },
+    {
+      "question": "How does photosynthesis convert light into chemical energy?",
+      "in_index": false,
+      "strategy": "self_rag",
+      "answer": "Insufficient evidence.",
+      "hops": 6,
+      "belief": 0.001,
+      "tokens": 2725,
+      "usd": 0.003809,
+      "llm_calls": 7,
+      "server_ms": 5584.1,
+      "wall_ms": 5615.6,
+      "docs": 6,
+      "actions": [
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE",
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE",
+        "RETRIEVE",
+        "VALIDATE_EVIDENCE"
+      ]
+    },
+    {
+      "question": "How does photosynthesis convert light into chemical energy?",
+      "in_index": false,
+      "strategy": "adaptive",
+      "answer": "Insufficient evidence.",
+      "hops": 1,
+      "belief": 0.206,
+      "tokens": 944,
+      "usd": 0.001292,
+      "llm_calls": 3,
+      "server_ms": 2225.1,
+      "wall_ms": 2248.9,
+      "docs": 4,
+      "actions": [
+        "RETRIEVE"
+      ]
+    }
+  ],
+  "summary": {
+    "pomdp": {
+      "n": 5,
+      "hops": 2.6,
+      "belief": 0.4418,
+      "usd": 0.0028665999999999995,
+      "tokens": 1950.6,
+      "server_ms": 5664.660000000001
+    },
+    "fixed": {
+      "n": 5,
+      "hops": 3.0,
+      "belief": 0.45919999999999994,
+      "usd": 0.0033640000000000002,
+      "tokens": 2266.4,
+      "server_ms": 5292.26
+    },
+    "self_rag": {
+      "n": 5,
+      "hops": 2.8,
+      "belief": 0.5551999999999999,
+      "usd": 0.002092,
+      "tokens": 1498.4,
+      "server_ms": 2841.7599999999998
+    },
+    "adaptive": {
+      "n": 5,
+      "hops": 2.2,
+      "belief": 0.4144,
+      "usd": 0.0026516,
+      "tokens": 1805.2,
+      "server_ms": 4357.179999999999
+    }
+  },
+  "failures": []
+}

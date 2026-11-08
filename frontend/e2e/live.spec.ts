@@ -10,6 +10,10 @@ const CLOUD = process.env.E2E_EXPECT_CLOUD !== "0";
 const IN_INDEX = 'Eddie Jemison had a role in the television series "IZombie", which premiered on what date?';
 const OUT_OF_INDEX = "How does photosynthesis convert light into chemical energy?";
 const STRATEGIES = ["POMDP", "Fixed RAG", "Self-RAG", "Adaptive-RAG"];
+// When set, a PNG of each step is written here (evidence for the report).
+const SHOTS = process.env.E2E_SHOTS_DIR;
+const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+let shotNo = 1;
 
 test.describe.configure({ mode: "serial" });
 test.skip(!PASSWORD, "set E2E_PASSWORD to run the live UI test");
@@ -34,6 +38,10 @@ async function ask(page: Page, strategy: string, question: string): Promise<Answ
   const chips = await card.innerText();
   const num = (re: RegExp): number => Number(re.exec(chips)?.[1] ?? Number.NaN);
   const text = (await card.locator("p.whitespace-pre-wrap").first().innerText()).trim();
+  if (SHOTS) {
+    await card.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/${String(shotNo++).padStart(2, "0")}-${slug(strategy)}.png` });
+  }
   return {
     strategy,
     hops: num(/(\d+) hops/),
@@ -80,6 +88,10 @@ test("signs in, runs every strategy on live AWS, and shows a real trace", async 
   const steps = page.getByTestId("hop-trace-step");
   await expect(steps.last()).toBeVisible();
   expect(await steps.count()).toBeGreaterThanOrEqual(1);
+  if (SHOTS) {
+    await steps.last().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${SHOTS}/${String(shotNo++).padStart(2, "0")}-reasoning-trace.png` });
+  }
 
   // An out-of-index question must not produce a confident invented answer.
   const unsupported = await ask(page, "POMDP", OUT_OF_INDEX);
@@ -93,4 +105,7 @@ test("signs in, runs every strategy on live AWS, and shows a real trace", async 
   await page.getByRole("link", { name: /Comparison/ }).first().click();
   await expect(page).toHaveURL(/\/compare/);
   await expect(page.getByRole("heading", { name: "Comparison Dashboard" })).toBeVisible();
+  if (SHOTS) {
+    await page.screenshot({ path: `${SHOTS}/${String(shotNo++).padStart(2, "0")}-comparison-dashboard.png` });
+  }
 });
