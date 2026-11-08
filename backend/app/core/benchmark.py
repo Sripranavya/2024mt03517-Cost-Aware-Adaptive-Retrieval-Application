@@ -32,6 +32,25 @@ def from_hf_row(row: dict) -> dict:
     }
 
 
+def total_cost(llm_cost_usd: float, hops: float, per_retrieval_usd: float) -> float:
+    """Per-query cost when every retrieval hop also costs ``per_retrieval_usd``."""
+    return llm_cost_usd + hops * per_retrieval_usd
+
+
+def break_even_price(base: dict, other: dict) -> float | None:
+    """Per-retrieval price above which ``base`` becomes cheaper than ``other``.
+
+    ``base``/``other`` need ``avg_cost_usd`` and ``avg_hops``. Returns ``None`` when
+    the hop counts are equal (no price can separate them), and 0.0 when ``base`` is
+    already no more expensive at a price of zero and uses fewer hops.
+    """
+    d_hops = float(other["avg_hops"]) - float(base["avg_hops"])
+    if d_hops == 0:
+        return None
+    price = (float(base["avg_cost_usd"]) - float(other["avg_cost_usd"])) / d_hops
+    return max(0.0, price)
+
+
 def split_of(qid: str, seed: int = 13) -> str:
     """Deterministic 70/15/15 split from a hash of (seed, id); order-independent."""
     digest = hashlib.sha1(f"{seed}:{qid}".encode()).hexdigest()

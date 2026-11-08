@@ -54,8 +54,12 @@ export OPENSEARCH_INDEX=hotpot-v1 LIVE_SOURCES=false SEED_SAMPLE_CORPUS=false
 python scripts/run_benchmark.py --download                       # HotpotQA dev, fixed seed 13
 python scripts/run_benchmark.py --split val  --max-per-split 50  # tune on validation only
 python scripts/run_benchmark.py --split test --max-per-split 200 # final report
-python scripts/run_benchmark.py --study --max-per-split 30       # stopping rule by category
+python scripts/run_benchmark.py --study --split test --max-per-split 30   # stopping rule by category
+python scripts/cost_sensitivity.py results/benchmark_test.csv             # hops -> dollars scenarios
 ```
+Use a separate `OPENSEARCH_INDEX` per run (for example `hotpot-test`, `hotpot-study`) so
+corpora stay independent, and a fresh index name after changing how passages are tagged.
+`SHORT_ANSWERS=true` is the benchmark default, so EM/F1 compare short spans.
 Outputs `results/benchmark_<split>.csv`, `results/stopping_study.csv`, `results/splits.json`.
 See `docs/COST_ANALYSIS.md` for how to read them.
 

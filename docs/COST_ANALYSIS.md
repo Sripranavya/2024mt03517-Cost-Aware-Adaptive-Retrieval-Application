@@ -14,6 +14,32 @@ benchmark run**. Do not report the second kind until `results/*.csv` exist.
 - Observation: on that single query the POMDP policy was **not** cheaper than Fixed RAG.
   One query on 12 documents proves nothing either way.
 
+## Validation pilot (HotpotQA val, n=20, live AWS, hotpot-v2 index)
+Same corpus, Claude Haiku 4.5, Titan embeddings and prompt for every strategy
+(`SHORT_ANSWERS=true`). Pilot only; not for reporting final claims.
+
+| Strategy | F1 | EM | Avg hops | Latency ms | USD/query |
+|---|---|---|---|---|---|
+| pomdp | 0.437 | 0.35 | 1.0 | 622 | 0.000938 |
+| fixed | 0.436 | 0.35 | 3.0 | 939 | 0.000941 |
+| adaptive | 0.437 | 0.35 | 3.1 | 838 | 0.000939 |
+| self_rag | 0.437 | 0.35 | 6.0 | 1266 | 0.000944 |
+
+Reading: equal answer quality with 1 retrieval hop instead of 3 to 6, and 34% to 51%
+lower latency. **Dollar cost per query is the same** because only the final answer call
+is billed: retrieval hops are free in the cost model and the baselines' reflection and
+classification are local heuristics. n=20 cannot resolve small differences.
+
+## Cost model limits (state these in the report)
+- LLM tokens and latency are measured (Bedrock Converse `usage`); retrieval hops carry
+  no dollar price in this setup, so the controller's saving is in retrieval effort and
+  latency, not in the LLM bill.
+- Self-RAG and Adaptive-RAG are simplified re-implementations (belief-based reflection;
+  a transparent heuristic complexity classifier). They are not the original systems.
+- `scripts/cost_sensitivity.py` turns measured hops into a dollar comparison for any
+  assumed per-retrieval price (paid search API, managed vector DB query) and reports the
+  break-even price. The prices are inputs, not measurements; report them as scenarios.
+
 ## What would justify the POMDP controller
 The claim is **accuracy per unit cost**, not lowest cost. It is supported only if,
 under identical corpus, LLM, embeddings, `k` and `max_hops`, the POMDP policy:

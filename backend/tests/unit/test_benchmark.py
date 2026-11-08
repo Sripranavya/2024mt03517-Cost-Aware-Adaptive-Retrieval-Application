@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from app.core.benchmark import (
     CATEGORIES,
+    break_even_price,
     categorize,
     conflicting_documents,
     from_hf_row,
@@ -11,6 +12,7 @@ from app.core.benchmark import (
     passages,
     split_of,
     to_eval_items,
+    total_cost,
 )
 
 
@@ -97,6 +99,17 @@ def test_benchmark_passages_are_retrievable_by_the_engine() -> None:
     engine.vector_store.add(docs, engine.embedder.embed_batch([d.text for d in docs]))
     result = engine.run_query("Where is the Eiffel Tower?", "fixed")
     assert any(d.title == "Eiffel Tower" for d in result.documents_used)
+
+
+def test_total_cost_and_break_even_price() -> None:
+    assert total_cost(0.001, 3, 0.0005) == 0.001 + 3 * 0.0005
+    pomdp = {"avg_cost_usd": 0.0010, "avg_hops": 1.0}
+    fixed = {"avg_cost_usd": 0.0009, "avg_hops": 3.0}
+    # pomdp costs 0.0001 more per query but saves 2 hops: break-even at 0.00005/hop.
+    assert abs(break_even_price(pomdp, fixed) - 0.00005) < 1e-12
+    assert break_even_price(pomdp, {"avg_cost_usd": 0.1, "avg_hops": 1.0}) is None
+    # Already cheaper at price zero -> floor at 0.
+    assert break_even_price({"avg_cost_usd": 0.0008, "avg_hops": 1.0}, fixed) == 0.0
 
 
 def test_short_answer_instruction_is_opt_in() -> None:
