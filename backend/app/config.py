@@ -96,6 +96,11 @@ class Settings(BaseSettings):
         default=256, ge=2, le=1024, alias="BEDROCK_EMBED_DIMENSION"
     )
     max_budget_usd: float = Field(default=0.0, ge=0.0, alias="MAX_BUDGET_USD")
+    episode_budget_usd: float = Field(default=0.0, ge=0.0, alias="EPISODE_BUDGET_USD")
+    min_marginal_gain: float = Field(default=0.0, ge=0.0, alias="MIN_MARGINAL_GAIN")
+    low_gain_patience: int = Field(default=2, ge=1, le=10, alias="LOW_GAIN_PATIENCE")
+    live_sources: bool | None = Field(default=None, alias="LIVE_SOURCES")
+    seed_sample_corpus: bool = Field(default=True, alias="SEED_SAMPLE_CORPUS")
     llm_cache_dir: str = Field(default="", alias="LLM_CACHE_DIR")
 
     # --- Cognito ---

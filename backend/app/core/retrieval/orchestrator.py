@@ -88,6 +88,9 @@ class RetrievalOrchestrator:
         retry_backoff_s: float = 0.1,
         reformulate_cost: float = 0.0015,
         validate_cost: float = 0.0015,
+        episode_budget_usd: float = 0.0,
+        min_marginal_gain: float = 0.0,
+        low_gain_patience: int = 2,
     ) -> None:
         self.connectors = connectors
         self.evaluator = evaluator
@@ -101,7 +104,9 @@ class RetrievalOrchestrator:
         self.retry_backoff_s = retry_backoff_s
         self.reformulate_cost = reformulate_cost
         self.validate_cost = validate_cost
-
+        self.episode_budget_usd = max(0.0, episode_budget_usd)
+        self.min_marginal_gain = max(0.0, min_marginal_gain)
+        self.low_gain_patience = max(1, low_gain_patience)
     # --- action execution -------------------------------------------------------
     def _retrieve_with_retry(
         self, connector: SourceConnector, query: str
@@ -211,9 +216,17 @@ class RetrievalOrchestrator:
         cost_tracker = CostTracker(self.price_in, self.price_out)
         trace: list[TraceStep] = []
         collected: list[Document] = []
+        low_gain_streak = 0
 
         # Hard safety cap: never exceed max_hops iterations regardless of policy.
         for _ in range(max_hops):
+            if self.episode_budget_usd and (
+                max(state.cost_spent_so_far, cost_tracker.summary.total_usd_cost)
+                >= self.episode_budget_usd
+            ):
+                break
+            if self.min_marginal_gain and low_gain_streak >= self.low_gain_patience:
+                break
             action = policy.decide_next_action(state)
             if action.type is ActionType.STOP:
                 break
@@ -223,6 +236,11 @@ class RetrievalOrchestrator:
                 action, state, acc, cost_tracker, collected
             )
             posterior = self.belief_updater.update(prior, obs)
+            low_gain_streak = (
+                low_gain_streak + 1
+                if posterior - prior < self.min_marginal_gain
+                else 0
+            )
             reward = self.reward_fn.step_reward(
                 action=action,
                 prior_confidence=prior,

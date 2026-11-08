@@ -47,3 +47,7 @@ crash.log
 # Terraform variable files (keep examples)
 *.tfvars
 !*.tfvars.example
+
+# Benchmark data and outputs
+data/
+results/

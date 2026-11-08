@@ -101,7 +101,11 @@ class Engine:
             )
         )
         self.evaluator = Evaluator(self.embedder)
-        allow_network = not settings.use_local_mocks
+        allow_network = (
+            settings.live_sources
+            if settings.live_sources is not None
+            else not settings.use_local_mocks
+        )
         self.orchestrator = RetrievalOrchestrator(
             connectors={
                 RetrievalSource.LOCAL_CORPUS: LocalCorpusConnector(
@@ -120,12 +124,15 @@ class Engine:
             llm=self.llm,
             price_per_1k_input_tokens=settings.price_per_1k_input_tokens,
             price_per_1k_output_tokens=settings.price_per_1k_output_tokens,
+            episode_budget_usd=settings.episode_budget_usd,
+            min_marginal_gain=settings.min_marginal_gain,
+            low_gain_patience=settings.low_gain_patience,
         )
         self._policies = self._build_policies()
 
     def _seed_if_empty(self) -> None:
         """Index the bundled sample corpus if the vector store is empty."""
-        if self.vector_store.count() > 0:
+        if not self.settings.seed_sample_corpus or self.vector_store.count() > 0:
             return
         docs = [
             Document(
