@@ -176,3 +176,13 @@ def test_interleave_takes_each_hops_best_documents() -> None:
     out = RetrievalOrchestrator._interleave(hops, 3)
     assert [x.id for x in out] == ["d0", "d2", "d1"]
     assert [x.id for x in RetrievalOrchestrator._interleave(hops, 2)] == ["d0", "d2"]
+
+
+def test_judge_no_supplies_next_query_without_a_followup_call() -> None:
+    llm = ScriptedLLM(judge="NO: chlorophyll pigment")
+    result = _engine(llm, ITERATIVE_RETRIEVAL=True).orchestrator.run(
+        QUERY, Sequence(R, Action.validate_evidence(), R), max_hops=6
+    )
+    assert result.trace[2].query_used == "chlorophyll pigment"
+    assert "followup" not in llm.calls
+    assert result.trace[1].observation.judgement is False

@@ -89,15 +89,29 @@ def build_followup_prompt(question: str, documents: list[Document]) -> str:
 
 
 def build_judge_prompt(question: str, documents: list[Document]) -> str:
-    """Ask whether the evidence suffices to answer the question (YES / NO)."""
+    """Ask whether the evidence suffices; on NO, also ask for the next search query."""
     return (
         "Decide whether the evidence is sufficient to answer the question "
-        "completely. Reply with exactly one word: YES or NO.\n"
+        "completely. Reply YES, or reply NO: followed by ONE short search query for "
+        "the information that is still missing.\n"
         f"{_EVIDENCE_NOTE}"
         f"{_fenced_evidence(documents)}"
         f"Question: {question}\n"
         "Sufficient:"
     )
+
+
+def parse_judge_followup(text: str, max_len: int = 200) -> str | None:
+    """The search query that follows ``NO:`` in a judge reply, if there is one."""
+    stripped = text.strip()
+    if not stripped.upper().startswith("NO"):
+        return None
+    _, _, rest = stripped.partition(":")
+    for line in rest.splitlines():
+        cleaned = line.strip().strip("\"'`").strip()
+        if cleaned:
+            return cleaned[:max_len]
+    return None
 
 
 def build_route_prompt(question: str) -> str:

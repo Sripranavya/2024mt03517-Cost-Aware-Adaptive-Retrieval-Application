@@ -37,6 +37,7 @@ from app.core.prompts import (
     build_judge_prompt,
     build_reformulation_prompt,
     parse_followup_query,
+    parse_judge_followup,
     parse_yes,
 )
 from app.core.retrieval.base import RetrievalResult
@@ -186,6 +187,7 @@ class RetrievalOrchestrator:
         acc: EvidenceAccumulator,
         cost_tracker: CostTracker,
         collected: list[list[Document]],
+        scratch: dict[str, str] | None = None,
     ) -> tuple[Observation, float, str, set[str], bool]:
         """Execute a non-terminal action.
 
@@ -194,7 +196,11 @@ class RetrievalOrchestrator:
         if action.type is ActionType.RETRIEVE:
             connector = self.connectors[action.source]
             query, extra_cost = state.query, 0.0
-            if self.iterative_retrieval and collected:
+            # A preceding judge that said NO already proposed the next query for free.
+            hint = scratch.pop("next_query", None) if scratch is not None else None
+            if self.iterative_retrieval and collected and hint:
+                query = hint
+            elif self.iterative_retrieval and collected:
                 # Later hops search for what is still missing, not the same question.
                 text, extra_cost = self._llm(
                     "followup_query",
@@ -225,7 +231,7 @@ class RetrievalOrchestrator:
             return obs, cost, new_query, set(), False
 
         if action.type is ActionType.VALIDATE_EVIDENCE:
-            obs, cost = self._validate(state, cost_tracker, collected)
+            obs, cost = self._validate(state, cost_tracker, collected, scratch)
             return obs, cost, state.query, set(), False
 
         return Observation.empty(), 0.0, state.query, set(), False
@@ -266,6 +272,7 @@ class RetrievalOrchestrator:
         state: POMDPState,
         cost_tracker: CostTracker,
         collected: list[list[Document]] | None = None,
+        scratch: dict[str, str] | None = None,
     ) -> tuple[Observation, float]:
         b = state.evidence_confidence
         if self.llm_actions:
@@ -276,9 +283,14 @@ class RetrievalOrchestrator:
                     state.original_query, self._evidence_for_prompts(collected or [])
                 ),
                 cost_tracker,
-                max_tokens=8,
+                max_tokens=40,
             )
             sufficient = parse_yes(text)
+            if scratch is not None:
+                scratch.pop("next_query", None)
+                proposed = None if sufficient else parse_judge_followup(text)
+                if proposed:
+                    scratch["next_query"] = proposed
             obs = Observation(
                 relevance_signal=1.0 if sufficient else 0.0,
                 evidence_coverage=b,
@@ -308,6 +320,7 @@ class RetrievalOrchestrator:
         cost_tracker = CostTracker(self.price_in, self.price_out)
         trace: list[TraceStep] = []
         collected: list[list[Document]] = []
+        scratch: dict[str, str] = {}
         low_gain_streak = 0
 
         if self.llm_actions:
@@ -338,7 +351,7 @@ class RetrievalOrchestrator:
 
             prior = state.evidence_confidence
             obs, cost, query_used, new_ids, injection_flagged = self._execute(
-                action, state, acc, cost_tracker, collected
+                action, state, acc, cost_tracker, collected, scratch
             )
             posterior = self.belief_updater.update(prior, obs)
             low_gain_streak = (
