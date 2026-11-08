@@ -17,14 +17,31 @@ The existing Section 6 numbers come from local mock mode (hashing embedder, mock
 and must not be presented as evidence. Replace with:
 - **Setup.** Live Bedrock + OpenSearch, fixed seed-13 train/val/test splits (70/15/15),
   cost weight chosen on validation only, same configuration for all strategies.
-- **Table A (HotpotQA test, n=TBD).** F1, EM, USD/query, hops, latency for POMDP, POMDP
-  quality-only, Fixed, Self-RAG, Adaptive-RAG, with paired bootstrap 95% CIs.
-- **Table B (cost-weight sweep, validation).** The cost/F1 trade-off curve. Validation
-  pilot (n=30): weight 0.15 gives F1 0.590 at 0.00477 USD; weight 20 gives 0.587 at
-  0.00370; weight 60 gives 0.519 at 0.00137. The curve shows the cost weight controls
-  the trade-off. Confirm on test before quoting.
-- **Table C (stopping study by category).** Hops and F1 per difficulty category.
-- **Table D (second and third dataset).** MS MARCO (single-hop) and MuSiQue (2-4 hop): TBD.
+- **Table A (HotpotQA test, n=80, v2, cost weight 40 chosen on validation).**
+
+  | Strategy | F1 | USD/query | Hops | Latency (ms) |
+  |---|---|---|---|---|
+  | POMDP | 0.667 | 0.00242 | 2.08 | 7,233 |
+  | Fixed (3 hops) | 0.679 | 0.00346 | 3.00 | 10,456 |
+  | Self-RAG | 0.667 | 0.00302 | 4.08 | 10,555 |
+  | Adaptive-RAG | 0.622 | 0.00328 | 2.77 | 9,605 |
+
+  Paired bootstrap 95% CIs: POMDP cost is lower than every baseline (vs Fixed -0.00104
+  [-0.00113, -0.00094]); F1 is not significantly different from Fixed (-0.012
+  [-0.036, +0.002]) and higher than Adaptive-RAG (+0.045 [+0.005, +0.097]).
+  The first iteration (v1, weight 20) was more expensive than Fixed (0.00385 vs 0.00345
+  USD/query); report both.
+- **Table B (cost-weight sweep, validation n=30, v2).** Weights 0.15 / 5 / 20 / 30 / 40 / 60
+  give F1 0.556 / 0.601 / 0.601 / 0.556 / 0.601 / 0.506 at 0.00408 / 0.00417 / 0.00370 /
+  0.00248 / 0.00238 / 0.00138 USD/query. Weight 40 is picked by the fixed rule (cheapest
+  within 0.02 F1 of the best).
+- **Table C (frontier, test n=80).** Fixed-1 0.512 F1 at 0.00117; Fixed-2 0.667 at 0.00236;
+  POMDP 0.667 at 0.00242; Fixed-3 0.679 at 0.00346; Self-RAG and Adaptive-RAG dominated.
+  The POMDP matches the best fixed depth on this 2-hop dataset; it does not beat Fixed-2.
+- **Table D (stopping study).** On HotpotQA the POMDP used 2.0 hops in every category
+  (7 to 40 queries each), so no per-category adaptivity is claimed.
+- **Table E (MS MARCO, single hop).** TBD from `results/msv2/summary.txt`.
+- **Ablation.** Full POMDP vs quality-only: TBD from `results/*/ablation_summary.txt`.
 - **Retrieval price scenarios** from `cost_sensitivity.py`, labelled as assumptions.
 
 ## 3. Ablations promised in the report
