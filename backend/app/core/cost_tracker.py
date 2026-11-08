@@ -73,13 +73,14 @@ class CostTracker:
         input_tokens: int,
         output_tokens: int,
         latency_ms: float,
+        fixed_usd: float = 0.0,
     ) -> CallCost:
         """Record one call and fold it into the running totals."""
         if input_tokens < 0 or output_tokens < 0:
             raise ValueError("token counts must be non-negative")
         if latency_ms < 0:
             raise ValueError("latency_ms must be non-negative")
-        usd = self.estimate_usd(input_tokens, output_tokens)
+        usd = self.estimate_usd(input_tokens, output_tokens) + max(0.0, fixed_usd)
         call = CallCost(
             label=label,
             input_tokens=input_tokens,

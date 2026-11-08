@@ -65,6 +65,9 @@ class Settings(BaseSettings):
         default=0.015, ge=0.0, alias="PRICE_PER_1K_OUTPUT_TOKENS"
     )
 
+    # Amortised cost of one retrieval (Titan embedding + share of the OpenSearch node).
+    retrieval_cost_usd: float = Field(default=0.0, ge=0.0, alias="RETRIEVAL_COST_USD")
+
     # --- Batch limits ---
     max_batch_queries: int = Field(default=50, ge=1, le=500, alias="MAX_BATCH_QUERIES")
 

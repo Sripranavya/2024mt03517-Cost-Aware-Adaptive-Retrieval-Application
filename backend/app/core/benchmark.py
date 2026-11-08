@@ -52,6 +52,27 @@ def from_musique_row(row: dict) -> dict | None:
     }
 
 
+def from_msmarco_row(row: dict) -> dict | None:
+    """Convert an MS MARCO v1.1 row to the HotpotQA layout; ``None`` if unanswerable.
+
+    Single-hop passage QA: the answer sits in one of the row's passages. ``qtype``
+    (description, numeric, entity, location, person) is the stopping-study axis.
+    """
+    answers = [a for a in row.get("answers", []) if a and a.strip() != "No Answer Present."]
+    texts = (row.get("passages") or {}).get("passage_text") or []
+    if not answers or not texts:
+        return None
+    return {
+        "_id": f"msmarco-{row['query_id']}",
+        "question": row["query"],
+        "answer": answers[0],
+        "type": "single",
+        "level": "single_hop",
+        "qtype": row.get("query_type", "").lower(),
+        "context": [["MS MARCO", [t]] for t in texts],
+    }
+
+
 def total_cost(llm_cost_usd: float, hops: float, per_retrieval_usd: float) -> float:
     """Per-query cost when every retrieval hop also costs ``per_retrieval_usd``."""
     return llm_cost_usd + hops * per_retrieval_usd
@@ -152,6 +173,8 @@ def categorize(row: dict) -> list[str]:
     ``multi_hop`` = bridge questions (the second entity must be discovered), and
     ``complex`` = bridge questions with long (>= 20 words) multi-clause wording.
     """
+    if row.get("qtype"):
+        return [f"ms_{row['qtype']}"]
     if row.get("hops"):
         return [f"hops_{row['hops']}"]
     cats: list[str] = []

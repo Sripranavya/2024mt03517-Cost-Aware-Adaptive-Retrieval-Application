@@ -126,6 +126,7 @@ class Engine:
             llm=self.llm,
             price_per_1k_input_tokens=settings.price_per_1k_input_tokens,
             price_per_1k_output_tokens=settings.price_per_1k_output_tokens,
+            retrieval_cost_usd=settings.retrieval_cost_usd,
             episode_budget_usd=settings.episode_budget_usd,
             min_marginal_gain=settings.min_marginal_gain,
             low_gain_patience=settings.low_gain_patience,

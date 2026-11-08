@@ -43,12 +43,15 @@ os.environ.setdefault("SINGLE_SOURCE_CORPUS", "true")  # every source searches t
 os.environ.setdefault("ITERATIVE_RETRIEVAL", "true")  # later hops use follow-up queries
 os.environ.setdefault("LLM_ACTIONS", "true")  # real judge / router / reformulation
 os.environ.setdefault("ANSWER_DOCS", "8")  # answer context spans all hops
+# Amortised retrieval price (Titan embed + OpenSearch share); an assumption (COST_ANALYSIS.md)
+os.environ.setdefault("RETRIEVAL_COST_USD", "0.0003")
 
 from app.config import get_settings  # noqa: E402
 from app.core.benchmark import (  # noqa: E402
     categorize,
     conflicting_documents,
     from_hf_row,
+    from_msmarco_row,
     from_musique_row,
     make_splits,
     passages,
@@ -81,6 +84,11 @@ DATASETS = {
         "hf": ("dgslibisey/MuSiQue", "default", "validation"),
         "convert": from_musique_row,
         "path": "data/musique_validation.json",
+    },
+    "msmarco": {
+        "hf": ("microsoft/ms_marco", "v1.1", "validation"),
+        "convert": from_msmarco_row,
+        "path": "data/msmarco_validation.json",
     },
 }
 

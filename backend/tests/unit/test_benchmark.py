@@ -165,3 +165,16 @@ def test_short_answer_instruction_is_opt_in() -> None:
 
     assert "shortest correct answer" not in build_answer_prompt("Q?", [])
     assert "shortest correct answer" in build_answer_prompt("Q?", [], short=True)
+
+def test_msmarco_conversion_and_category() -> None:
+    from app.core.benchmark import categorize, from_msmarco_row
+
+    row = {
+        "query_id": 7, "query": "avg salary", "query_type": "NUMERIC",
+        "answers": ["$15,000 per year."],
+        "passages": {"passage_text": ["Salary is $15,000.", "Other text."]},
+    }
+    conv = from_msmarco_row(row)
+    assert conv["_id"] == "msmarco-7" and len(conv["context"]) == 2
+    assert categorize(conv) == ["ms_numeric"]
+    assert from_msmarco_row({**row, "answers": ["No Answer Present."]}) is None

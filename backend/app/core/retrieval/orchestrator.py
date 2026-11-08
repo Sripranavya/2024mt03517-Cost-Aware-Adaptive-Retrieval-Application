@@ -95,6 +95,7 @@ class RetrievalOrchestrator:
         retry_backoff_s: float = 0.1,
         reformulate_cost: float = 0.0015,
         validate_cost: float = 0.0015,
+        retrieval_cost_usd: float = 0.0,
         episode_budget_usd: float = 0.0,
         min_marginal_gain: float = 0.0,
         low_gain_patience: int = 2,
@@ -115,6 +116,7 @@ class RetrievalOrchestrator:
         self.retry_backoff_s = retry_backoff_s
         self.reformulate_cost = reformulate_cost
         self.validate_cost = validate_cost
+        self.retrieval_cost_usd = max(0.0, retrieval_cost_usd)
         self.episode_budget_usd = max(0.0, episode_budget_usd)
         self.min_marginal_gain = max(0.0, min_marginal_gain)
         self.low_gain_patience = max(1, low_gain_patience)
@@ -206,12 +208,13 @@ class RetrievalOrchestrator:
             obs = self.evaluator.observe(result, acc)
             new_ids = {d.id for d in result.documents}
             collected.append(list(result.documents))
-            cost = cost_tracker.estimate_usd(0, 0) + extra_cost
+            cost = self.retrieval_cost_usd + extra_cost
             cost_tracker.record(
                 label=f"retrieve:{action.source.value}",
                 input_tokens=0,
                 output_tokens=0,
                 latency_ms=result.latency_ms,
+                fixed_usd=self.retrieval_cost_usd,
             )
             if result.injection_flagged:
                 logger.warning("injection_in_trace", extra={"hop": state.hop_count})
