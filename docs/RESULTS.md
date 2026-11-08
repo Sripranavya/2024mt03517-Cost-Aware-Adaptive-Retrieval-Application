@@ -1,11 +1,46 @@
 # Results (HotpotQA, live AWS ap-southeast-2)
 
-> **Experiment A (below) used the earlier controller and a static-query setup.** It is
-> kept because it is real measured data, but it is **superseded** by experiment B, which
-> fixes defects found afterwards (see "Defects found in experiment A"). Do not present
-> experiment A's "POMDP stops after one hop" as a validated stopping rule. Experiment B
-> results are produced by `scripts/run_all.sh` and are not in this file until that run
-> has been done.
+> **Experiment B results are in the next section.** Experiment A (further below) used the
+> earlier controller and a static-query setup. It is kept because it is real measured data,
+> but it is **superseded**. Do not present experiment A's "POMDP stops after one hop" as a
+> validated stopping rule.
+
+## Experiment B (HotpotQA, live AWS, `scripts/run_all.sh`)
+Setup: seed-13 splits, validation n=30 per run, test n=80, cost weight chosen on validation
+only (cheapest weight within 0.02 F1 of the best), identical settings for every strategy.
+Retrieval hops priced at an assumed 0.0003 USD. Two iterations are reported, in order.
+
+**v1 (weight 20, judge and follow-up as two LLM calls).** On test the POMDP was the most
+expensive strategy: F1 0.679, 0.00385 USD/query, 3.73 hops, against Fixed 0.688 /
+0.00345 / 3.0. No F1 difference was significant. This result is kept.
+
+**v2 (weight 40; no re-judging unchanged evidence; the judge proposes the next query on
+NO, saving a follow-up call).** Test, n=80:
+
+| Strategy | F1 | USD/query | Hops | Latency (ms) |
+|---|---|---|---|---|
+| POMDP | 0.667 | 0.00242 | 2.08 | 7,233 |
+| Fixed (3 hops) | 0.679 | 0.00346 | 3.00 | 10,456 |
+| Self-RAG | 0.667 | 0.00302 | 4.08 | 10,555 |
+| Adaptive-RAG | 0.622 | 0.00328 | 2.77 | 9,605 |
+
+Paired bootstrap 95% CIs for the POMDP: cost is lower than every baseline (vs Fixed
+-0.00104 [-0.00113, -0.00094]; vs Self-RAG -0.00060 [-0.00084, -0.00037]; vs Adaptive-RAG
+-0.00087 [-0.00123, -0.00051]); hops and latency are lower than every baseline; F1 is not
+significantly different from Fixed (-0.012 [-0.036, +0.002]) or Self-RAG, and higher than
+Adaptive-RAG (+0.045 [+0.005, +0.097]).
+
+**Frontier (same test split):** Fixed-1 F1 0.512 at 0.00117; Fixed-2 F1 0.667 at 0.00236;
+POMDP 0.667 at 0.00242; Fixed-3 0.679 at 0.00346. The POMDP is level with Fixed-2, not
+better. Self-RAG and Adaptive-RAG are dominated.
+
+**What this supports:** the POMDP matches the best fixed depth on HotpotQA (a 2-hop
+dataset) and is about 30% cheaper than the default 3-hop pipeline with no significant F1
+loss; it dominates Self-RAG and Adaptive-RAG.
+
+**What it does not support:** a saving over Fixed-2; per-category adaptivity (the POMDP
+used 2.0 hops in every stopping-study category, and categories have only 7 to 40
+queries); generalisation beyond HotpotQA and one run (n=80, weight picked on n=30).
 
 ## Defects found in experiment A
 1. **Stopping rule.** `STOP` was valued with the absolute belief and every other action with
