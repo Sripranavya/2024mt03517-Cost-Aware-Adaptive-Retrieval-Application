@@ -42,6 +42,31 @@ loss; it dominates Self-RAG and Adaptive-RAG.
 used 2.0 hops in every stopping-study category, and categories have only 7 to 40
 queries); generalisation beyond HotpotQA and one run (n=80, weight picked on n=30).
 
+## Experiment B on MS MARCO (single hop, live AWS)
+Setup: validation n=20, test n=60, weights 20/40/60 swept on validation, the picker chose
+60. Absolute F1 is low (about 0.33) because references are full sentences while answers
+are short; use it for comparing strategies, not as an accuracy figure. Run-to-run noise is
+about 0.007 F1 (the same weight-60 setting gave 0.3225 and 0.3296).
+
+| Config (test, n=60) | F1 | USD/query | Hops |
+|---|---|---|---|
+| Fixed-1 | 0.333 | 0.00106 | 1.00 |
+| POMDP (weight 60, chosen on validation) | 0.323 | 0.00107 | 1.02 |
+| Adaptive-RAG | 0.330 | 0.00120 | 1.07 |
+| Fixed-2 | 0.336 | 0.00200 | 2.00 |
+| Self-RAG | 0.338 | 0.00191 | 2.57 |
+| POMDP (weight 40) | 0.344 | 0.00214 | 2.20 |
+| Fixed-3 | 0.334 | 0.00290 | 3.00 |
+
+**What this supports:** on a single-hop dataset the POMDP settles at about 1 hop, about 63%
+cheaper than Fixed-3 and 46% cheaper than Fixed-2, with F1 in the same range. Together with
+HotpotQA (about 2 hops) one controller reaches near-optimal depth on both datasets.
+
+**What it does not support:** a gain over the best fixed depth (Fixed-1 is as cheap and
+about equally accurate); depth is mostly set by the cost weight, which is tuned per dataset
+(40 on HotpotQA, 60 on MS MARCO), just as a fixed depth would be; per-category conclusions
+(groups of 1 to 3 queries are not meaningful).
+
 ## Defects found in experiment A
 1. **Stopping rule.** `STOP` was valued with the absolute belief and every other action with
    its incremental gain, so the controller stopped after one retrieval whatever the
