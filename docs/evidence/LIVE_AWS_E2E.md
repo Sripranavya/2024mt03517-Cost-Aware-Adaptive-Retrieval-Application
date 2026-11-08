@@ -79,6 +79,19 @@ Each shows the footer badge "Cloud - 800 docs" (live index).
 ![POMDP answer](./screenshots/01-pomdp.png)
 ![Reasoning trace](./screenshots/05-reasoning-trace.png)
 
+## AWS console screenshots
+Taken in the AWS console, region Asia Pacific (Sydney), 2026-11-08.
+
+| File | Shows |
+|---|---|
+| [01-opensearch-domain-list.png](./aws-console/01-opensearch-domain-list.png) | OpenSearch Service dashboard: one domain (`agentic-rag-vectors`), status Active, engine OpenSearch 2.11, cluster health **Yellow**, 7.68 GiB free storage. This is the domain list, not the domain detail page, so the endpoint, instance type and document count are not visible. |
+| [02-cloudwatch-bedrock-metrics.png](./aws-console/02-cloudwatch-bedrock-metrics.png) | CloudWatch metrics for Bedrock: metrics exist for `amazon.titan-embed-text-v2:0` and `au.anthropic.claude-haiku-4-5-20251001-v1:0` (Invocations, InputTokenCount, InvocationLatency), showing both models were actually invoked in this account and region. No metric is selected, so the graph is empty. |
+
+Not captured: the OpenSearch domain detail page (endpoint, instance type, searchable
+documents) and a CloudWatch graph with a metric selected. A Bedrock model-catalog page for
+"Claude Haiku 5.5" was also seen, but the experiments used Claude Haiku 4.5, so it is not
+used as evidence.
+
 ## Reproduce
 1. In CloudShell: `aws configure export-credentials --format powershell`, copy the 3 lines.
 2. `powershell -ExecutionPolicy Bypass -File .\scripts\start_live_ui.ps1` (reads the clipboard).
