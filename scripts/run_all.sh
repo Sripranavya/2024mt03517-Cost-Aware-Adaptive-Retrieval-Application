@@ -10,7 +10,7 @@
 #   tail -5 ~/run_all.log
 #
 # Overrides (environment): DATASETS="hotpotqa musique" WORKERS=3 VAL_N=30 TEST_N=80
-#                          STUDY_N=40 WEIGHTS="0.15 5 20 60" MAX_BUDGET_USD=30
+#                          STUDY_N=40 WEIGHTS="0.15 5 20 30 40 60" MAX_BUDGET_USD=30
 set -u
 cd "$(dirname "$0")/../backend" || exit 1
 # shellcheck disable=SC1091
@@ -23,7 +23,7 @@ WORKERS="${WORKERS:-3}"
 VAL_N="${VAL_N:-30}"
 TEST_N="${TEST_N:-80}"
 STUDY_N="${STUDY_N:-40}"
-WEIGHTS="${WEIGHTS:-0.15 5 20 60}"
+WEIGHTS="${WEIGHTS:-0.15 5 20 30 40 60}"
 BENCH=(python ../scripts/run_benchmark.py)
 
 step() { # step <file that marks completion> <label> <command...>

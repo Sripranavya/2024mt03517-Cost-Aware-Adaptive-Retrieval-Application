@@ -249,6 +249,12 @@ class GreedyPolicy(Policy):
         for action in all_candidate_actions():
             if action.type is ActionType.STOP:
                 continue
+            # Re-judging unchanged evidence just pays for the same verdict again.
+            if (
+                action.type is ActionType.VALIDATE_EVIDENCE
+                and state.last_judgement is not None
+            ):
+                continue
             utility = self.expected_utility(state, action)
             if utility > best_utility:
                 best_utility = utility

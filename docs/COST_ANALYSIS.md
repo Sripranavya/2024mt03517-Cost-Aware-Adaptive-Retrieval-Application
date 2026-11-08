@@ -40,9 +40,13 @@ costs can now differ between strategies for a real reason. How much, if at all, 
 known from the final runs (`results/*/summary.txt`); no saving is claimed before then.
 
 ## Cost model limits (state these in the report)
-- LLM tokens and latency are measured (Bedrock Converse `usage`); retrieval hops carry
-  no dollar price in this setup, so the controller's saving is in retrieval effort and
-  latency, not in the LLM bill.
+- LLM tokens and latency are measured (Bedrock Converse `usage`). Retrieval hops are
+  priced at `RETRIEVAL_COST_USD` (benchmark default 0.0003 USD): an assumed amortised
+  cost of one Titan embedding plus a share of the OpenSearch node, not a measurement.
+  Report it as an assumption and use `scripts/cost_sensitivity.py` to show how the
+  conclusion changes at other prices.
+- The policy's own expected-cost priors (source profiles, validate/reformulate costs) are
+  fixed constants and are not tied to `RETRIEVAL_COST_USD`.
 - Self-RAG and Adaptive-RAG are simplified re-implementations (belief-based reflection;
   a transparent heuristic complexity classifier). They are not the original systems.
 - `scripts/cost_sensitivity.py` turns measured hops into a dollar comparison for any
