@@ -9,7 +9,8 @@ Usage (cloud or local; env decides backends)::
     python scripts/run_benchmark.py --split test --max-per-split 100
     python scripts/run_benchmark.py --study --max-per-split 30  # stopping study
 
-HotpotQA: http://curtis.ml.cmu.edu/datasets/hotpot/ (dev distractor, CC BY-SA).
+HotpotQA (dev, distractor; CC BY-SA 4.0) is fetched from the Hugging Face
+datasets-server JSON API: https://huggingface.co/datasets/hotpotqa/hotpot_qa
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ import csv
 import json
 import os
 import sys
+import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -34,18 +37,57 @@ from app.config import get_settings  # noqa: E402
 from app.core.benchmark import (  # noqa: E402
     categorize,
     conflicting_documents,
+    from_hf_row,
     make_splits,
     passages,
     to_eval_items,
 )
 from app.core.engine import STRATEGIES, Engine  # noqa: E402
 
-HOTPOT_URL = "http://curtis.ml.cmu.edu/datasets/hotpot/hotpot_dev_distractor_v1.json"
+HF_ROWS_URL = "https://datasets-server.huggingface.co/rows"
+HF_PAGE = 100  # API maximum rows per request
 DEFAULT_DATA = Path("data/hotpot_dev_distractor_v1.json")
 FIELDS = (
     "split", "category", "strategy", "n", "accuracy", "exact_match", "f1",
     "avg_cost_usd", "avg_tokens", "avg_hops", "avg_latency_ms", "efficiency",
 )  # fmt: skip
+
+
+def _fetch_page(offset: int) -> dict:
+    query = urllib.parse.urlencode(
+        {
+            "dataset": "hotpotqa/hotpot_qa", "config": "distractor",
+            "split": "validation", "offset": offset, "length": HF_PAGE,
+        }
+    )  # fmt: skip
+    last: Exception | None = None
+    for attempt in range(8):
+        try:
+            with urllib.request.urlopen(f"{HF_ROWS_URL}?{query}", timeout=120) as r:  # noqa: S310
+                return json.load(r)
+        except (OSError, ValueError) as exc:  # HTTP/timeouts/truncated JSON
+            last = exc
+            time.sleep(min(60, 3 * 2**attempt))
+    raise SystemExit(f"download failed at offset {offset}: {last!r}")
+
+
+def download_hotpot(target: Path) -> None:
+    """Fetch every validation row (7,405) in pages; resumable via a .part file."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    part = target.with_suffix(".part")
+    rows: list[dict] = json.loads(part.read_text("utf-8")) if part.exists() else []
+    offset, total = len(rows), None
+    while total is None or offset < total:
+        page = _fetch_page(offset)
+        total = page["num_rows_total"]
+        rows.extend(from_hf_row(item["row"]) for item in page["rows"])
+        offset = len(rows)
+        if (offset // HF_PAGE) % 10 == 0:
+            part.write_text(json.dumps(rows), encoding="utf-8")
+            print(f"  {offset}/{total}", flush=True)
+    target.write_text(json.dumps(rows), encoding="utf-8")
+    part.unlink(missing_ok=True)
+    print(f"downloaded {len(rows)} HotpotQA rows to {target}")
 
 
 def index(engine: Engine, docs, batch: int = 32) -> None:
@@ -86,9 +128,7 @@ def main() -> None:
 
     data = Path(args.data)
     if args.download and not data.exists():
-        data.parent.mkdir(parents=True, exist_ok=True)
-        print(f"downloading {HOTPOT_URL}")
-        urllib.request.urlretrieve(HOTPOT_URL, data)  # noqa: S310 - fixed public URL
+        download_hotpot(data)
     rows = json.loads(data.read_text(encoding="utf-8"))
     splits = make_splits(rows, args.seed, args.max_per_split)
 

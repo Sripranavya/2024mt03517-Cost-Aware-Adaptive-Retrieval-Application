@@ -29,7 +29,7 @@ the **validation** split only, then report test results once. A negative result 
 some categories is a valid finding if explained.
 
 ## Protocol
-- Dataset: HotpotQA dev (distractor). Split by `sha1(seed:id)`: 70/15/15 train/val/test,
+- Dataset: HotpotQA dev (distractor), fetched from the Hugging Face datasets-server (the original CMU host is unreachable from AWS). Split by `sha1(seed:id)`: 70/15/15 train/val/test,
   seed 13, saved to `results/splits.json`.
 - Corpus: the unique paragraphs of the selected questions, indexed once with Titan.
   Live Wikipedia/arXiv are disabled for benchmarks (`LIVE_SOURCES=false`) so every

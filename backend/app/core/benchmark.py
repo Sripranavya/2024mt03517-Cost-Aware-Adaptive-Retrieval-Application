@@ -19,6 +19,19 @@ _SPLIT_BOUNDS = (("train", 0.70), ("val", 0.85), ("test", 1.0))
 CATEGORIES = ("easy", "complex", "multi_hop", "conflicting")
 
 
+def from_hf_row(row: dict) -> dict:
+    """Convert a Hugging Face ``hotpot_qa`` row to the original HotpotQA layout."""
+    ctx = row["context"]
+    return {
+        "_id": row["id"],
+        "question": row["question"],
+        "answer": row["answer"],
+        "type": row.get("type", ""),
+        "level": row.get("level", ""),
+        "context": [[t, list(s)] for t, s in zip(ctx["title"], ctx["sentences"], strict=False)],
+    }
+
+
 def split_of(qid: str, seed: int = 13) -> str:
     """Deterministic 70/15/15 split from a hash of (seed, id); order-independent."""
     digest = hashlib.sha1(f"{seed}:{qid}".encode()).hexdigest()

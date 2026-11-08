@@ -6,6 +6,7 @@ from app.core.benchmark import (
     CATEGORIES,
     categorize,
     conflicting_documents,
+    from_hf_row,
     make_splits,
     passages,
     split_of,
@@ -59,6 +60,18 @@ def test_categorize_and_eval_items() -> None:
     assert categorize(_row(2, "hard", "comparison")) == ["complex"]
     assert set(CATEGORIES) >= {"easy", "complex", "multi_hop", "conflicting"}
     assert to_eval_items([_row(3)]) == [{"query": "Question 3?", "reference": "Answer 3"}]
+
+
+def test_from_hf_row_matches_original_layout() -> None:
+    hf = {
+        "id": "x1", "question": "Q?", "answer": "A", "type": "bridge", "level": "hard",
+        "context": {"title": ["T1", "T2"], "sentences": [["a.", "b."], ["c."]]},
+    }  # fmt: skip
+    row = from_hf_row(hf)
+    assert row["_id"] == "x1" and row["level"] == "hard"
+    assert row["context"] == [["T1", ["a.", "b."]], ["T2", ["c."]]]
+    assert [d.title for d in passages([row])] == ["T1", "T2"]
+    assert categorize(row) == ["complex", "multi_hop"]
 
 
 def test_conflicting_documents_contradict_the_reference() -> None:
