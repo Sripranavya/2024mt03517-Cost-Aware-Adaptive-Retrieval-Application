@@ -61,6 +61,12 @@ from app.core.sample_data import SAMPLE_DOCUMENTS
 STRATEGIES = ("pomdp", "fixed", "self_rag", "adaptive")
 
 
+def _named(policy, name: str):  # noqa: ANN001, ANN202
+    """Label a policy instance so reports distinguish fixed-depth variants."""
+    policy.name = name
+    return policy
+
+
 @dataclass
 class StrategyMetrics:
     """Aggregate metrics for one strategy over a labelled query set."""
@@ -184,6 +190,8 @@ class Engine:
             ),
             "pomdp_quality": quality_only,
             "fixed": FixedRAGPolicy(n_retrievals=3),
+            "fixed_1": _named(FixedRAGPolicy(n_retrievals=1), "fixed_1"),
+            "fixed_2": _named(FixedRAGPolicy(n_retrievals=2), "fixed_2"),
             "self_rag": SelfRAGPolicy(use_llm_judge=self.settings.llm_actions),
             "adaptive": AdaptiveRAGPolicy(use_llm_router=self.settings.llm_actions),
             "crag": CorrectiveRAGPolicy(),

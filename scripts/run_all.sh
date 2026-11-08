@@ -24,6 +24,7 @@ VAL_N="${VAL_N:-30}"
 TEST_N="${TEST_N:-80}"
 STUDY_N="${STUDY_N:-40}"
 WEIGHTS="${WEIGHTS:-0.15 5 20 30 40 60}"
+FRONTIER_WEIGHTS="${FRONTIER_WEIGHTS:-40 60}"
 BENCH=(python ../scripts/run_benchmark.py)
 
 step() { # step <file that marks completion> <label> <command...>
@@ -38,8 +39,8 @@ step() { # step <file that marks completion> <label> <command...>
 }
 
 for ds in $DATASETS; do
-  if [ "$ds" = hotpotqa ]; then pfx=hp; else pfx=mq; fi
-  base="results/$pfx"
+  if [ "$ds" = hotpotqa ]; then pfx=hp; elif [ "$ds" = musique ]; then pfx=mq; else pfx=ms; fi
+  base="results/${pfx}${RUN_TAG:-}"
   mkdir -p "$base" data
 
   step "data/.done_$ds" "download $ds" \
@@ -76,6 +77,21 @@ for ds in $DATASETS; do
     "${BENCH[@]}" --dataset "$ds" --split test --max-per-split "$STUDY_N" --study \
     --reuse-index --workers "$WORKERS" --out "$base/study" || continue
 
+  fw=""
+  for cw2 in $FRONTIER_WEIGHTS; do
+    step "$base/frontier/cw$cw2/benchmark_test.csv" "$ds frontier test pomdp cost_weight=$cw2" \
+      env REWARD_COST_WEIGHT="$cw2" OPENSEARCH_INDEX="$pfx-test" \
+      "${BENCH[@]}" --dataset "$ds" --split test --max-per-split "$TEST_N" \
+      --strategies pomdp --reuse-index --workers "$WORKERS" --out "$base/frontier/cw$cw2" \
+      || continue
+    fw="$fw $base/frontier/cw$cw2"
+  done
+  step "$base/frontier/fixed/benchmark_test.csv" "$ds frontier fixed-depth baselines" \
+    env OPENSEARCH_INDEX="$pfx-test" \
+    "${BENCH[@]}" --dataset "$ds" --split test --max-per-split "$TEST_N" \
+    --strategies fixed_1 fixed_2 --reuse-index --workers "$WORKERS" \
+    --out "$base/frontier/fixed" || true
+
   {
     echo "== $ds test (cost_weight=$cw)"
     cat "$base/test/benchmark_test.csv"
@@ -84,6 +100,8 @@ for ds in $DATASETS; do
     echo "== $ds stopping study"
     cat "$base/study/stopping_study.csv"
     python ../scripts/significance.py "$base/study/stopping_study_per_query.csv"
+    echo "== $ds cost/F1 frontier (test, reporting only)"
+    python ../scripts/frontier.py "$base/test" "$base/frontier/fixed" $fw
   } > "$base/summary.txt" 2>&1
   echo "[done] $ds -> $base/summary.txt"
 done
