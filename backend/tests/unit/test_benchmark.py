@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from app.core.benchmark import (
     CATEGORIES,
     break_even_price,
@@ -99,6 +101,37 @@ def test_conflicting_documents_contradict_the_reference() -> None:
     assert "Answer 1" in docs[0].text and "Answer 0" not in docs[0].text
     assert items[0]["reference"] == "Answer 0"
     assert conflicting_documents(rows[:1]) == ([], [])
+
+
+def test_musique_conversion_hops_and_unanswerable_filter() -> None:
+    from app.core.benchmark import from_musique_row
+
+    row = {
+        "id": "3hop1__12_34_56", "question": "Q?", "answer": "A", "answerable": True,
+        "paragraphs": [
+            {"idx": 0, "title": "T", "paragraph_text": "first.", "is_supporting": True},
+            {"idx": 1, "title": "T", "paragraph_text": "other.", "is_supporting": False},
+        ],
+    }  # fmt: skip
+    conv = from_musique_row(row)
+    assert conv["hops"] == 3 and conv["_id"] == "3hop1__12_34_56"
+    assert categorize(conv) == ["hops_3"]
+    assert from_musique_row({**row, "answerable": False}) is None
+    # Same title, different text must stay two distinct passages (no overwrite).
+    docs = passages([conv])
+    assert len(docs) == 2 and len({d.id for d in docs}) == 2
+
+
+def test_pick_cost_weight_rule() -> None:
+    from app.core.benchmark import pick_cost_weight
+
+    cands = [(0.15, 0.50, 0.0020), (5.0, 0.49, 0.0015), (20.0, 0.48, 0.0012), (60.0, 0.40, 0.0009)]
+    # 60 is cheapest but loses 0.10 F1; 20 is within 0.02 of the best and cheaper than 5.
+    assert pick_cost_weight(cands) == 20.0
+    assert pick_cost_weight(cands, tol=0.005) == 0.15
+    assert pick_cost_weight([(5.0, 0.5, 0.001), (1.0, 0.5, 0.001)]) == 1.0  # tie -> smaller
+    with pytest.raises(ValueError):
+        pick_cost_weight([])
 
 
 def test_benchmark_passages_are_retrievable_by_the_engine() -> None:

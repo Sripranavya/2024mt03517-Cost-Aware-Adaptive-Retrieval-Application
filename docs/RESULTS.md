@@ -1,5 +1,31 @@
 # Results (HotpotQA, live AWS ap-southeast-2)
 
+> **Experiment A (below) used the earlier controller and a static-query setup.** It is
+> kept because it is real measured data, but it is **superseded** by experiment B, which
+> fixes defects found afterwards (see "Defects found in experiment A"). Do not present
+> experiment A's "POMDP stops after one hop" as a validated stopping rule. Experiment B
+> results are produced by `scripts/run_all.sh` and are not in this file until that run
+> has been done.
+
+## Defects found in experiment A
+1. **Stopping rule.** `STOP` was valued with the absolute belief and every other action with
+   its incremental gain, so the controller stopped after one retrieval whatever the
+   question (hops were exactly 1.0 in every category). Fixed in
+   `GreedyPolicy._continue_utility`.
+2. **Baselines retrieved from empty sources.** They rotate local_corpus, wikipedia and
+   arxiv, but the benchmark corpus was tagged only `local_corpus`, so hops 2 and later
+   returned nothing. Fixed with `SINGLE_SOURCE_CORPUS`.
+3. **Repeated hops reused the same query**, so deeper retrieval could not add evidence.
+   Fixed with `ITERATIVE_RETRIEVAL` (LLM-written follow-up queries, billed).
+4. **`VALIDATE` and `REFORMULATE` were mocks** with an observation derived from the belief
+   itself. They are real LLM calls under `LLM_ACTIONS`, with a Bayes sensor model.
+5. **Cost weight.** `REWARD_COST_WEIGHT=0.15` made a US$0.001 hop cost 0.00015 quality
+   units, so cost never influenced decisions. It is now swept on validation.
+6. **Baselines were not distinct enough.** Self-RAG's reflection used the same belief as
+   the POMDP; it is now an LLM judge call per hop. Adaptive-RAG's router can be an LLM call.
+
+## Experiment A (static query, superseded)
+
 Setup common to all strategies: Claude Haiku 4.5 (`au.` profile), Titan embeddings
 (256-d), one shared corpus per run, `k=4` per hop, `MAX_HOPS=6`, `SHORT_ANSWERS=true`,
 split seed 13 (70/15/15 by `sha1(seed:id)`, ids in `results/splits.json`). Raw CSVs live

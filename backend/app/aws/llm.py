@@ -12,6 +12,7 @@ model. The cloud client calls Amazon Bedrock via the default credential chain.
 from __future__ import annotations
 
 import re
+import threading
 
 from app.aws.interfaces import LLMClient, LLMResponse
 
@@ -126,7 +127,7 @@ class BedrockLLMClient(LLMClient):
             config=Config(
                 connect_timeout=5,
                 read_timeout=60,
-                retries={"max_attempts": 3, "mode": "standard"},
+                retries={"max_attempts": 8, "mode": "adaptive"},
             ),
         )
 
@@ -177,6 +178,7 @@ class CachingBudgetLLMClient(LLMClient):
         self.price_out = price_out_per_1k
         self.spent_usd = 0.0
         self.calls = 0
+        self._lock = threading.Lock()
 
     def generate(self, prompt: str, *, max_tokens: int = 512) -> LLMResponse:
         import hashlib
@@ -191,11 +193,12 @@ class CachingBudgetLLMClient(LLMClient):
                 f"LLM spend ${self.spent_usd:.4f} reached cap ${self.max_budget_usd:.2f}"
             )
         resp = self.inner.generate(prompt, max_tokens=max_tokens)
-        self.calls += 1
-        self.spent_usd += (
-            resp.input_tokens / 1000 * self.price_in
-            + resp.output_tokens / 1000 * self.price_out
-        )
+        with self._lock:
+            self.calls += 1
+            self.spent_usd += (
+                resp.input_tokens / 1000 * self.price_in
+                + resp.output_tokens / 1000 * self.price_out
+            )
         path.write_text(
             json.dumps(
                 {

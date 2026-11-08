@@ -30,6 +30,15 @@ lower latency. **Dollar cost per query is the same** because only the final answ
 is billed: retrieval hops are free in the cost model and the baselines' reflection and
 classification are local heuristics. n=20 cannot resolve small differences.
 
+## Cost model update (final configuration)
+The statements above about the validation pilot describe the earlier static setup. With
+`LLM_ACTIONS=true` and `ITERATIVE_RETRIEVAL=true` every extra retrieval hop costs a real LLM
+call (the follow-up query), Self-RAG pays one judge call per hop, Adaptive-RAG pays one
+classification call, and the POMDP pays a judge call only when its expected value of
+information exceeds the penalty. These are billed from Bedrock `usage` tokens, so dollar
+costs can now differ between strategies for a real reason. How much, if at all, is only
+known from the final runs (`results/*/summary.txt`); no saving is claimed before then.
+
 ## Cost model limits (state these in the report)
 - LLM tokens and latency are measured (Bedrock Converse `usage`); retrieval hops carry
   no dollar price in this setup, so the controller's saving is in retrieval effort and

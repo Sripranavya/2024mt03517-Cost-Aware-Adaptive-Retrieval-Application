@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     live_sources: bool | None = Field(default=None, alias="LIVE_SOURCES")
     seed_sample_corpus: bool = Field(default=True, alias="SEED_SAMPLE_CORPUS")
     short_answers: bool = Field(default=False, alias="SHORT_ANSWERS")
+    iterative_retrieval: bool = Field(default=False, alias="ITERATIVE_RETRIEVAL")
+    llm_actions: bool = Field(default=False, alias="LLM_ACTIONS")
+    answer_docs: int = Field(default=0, ge=0, le=20, alias="ANSWER_DOCS")
+    single_source_corpus: bool = Field(default=False, alias="SINGLE_SOURCE_CORPUS")
     llm_cache_dir: str = Field(default="", alias="LLM_CACHE_DIR")
 
     # --- Cognito ---

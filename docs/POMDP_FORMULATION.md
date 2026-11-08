@@ -176,6 +176,39 @@ guardrails override the optimisation:
 `rank_actions` exposes the scored candidates so the UI can show *why* an action
 was chosen.
 
+### 7.1.1 Corrections made for the final implementation
+
+Two changes make the controller's stopping decision meaningful, and the earlier
+experiments (see `docs/RESULTS.md`, experiment A) were run before them.
+
+1. **Comparable utilities.** `STOP` is valued with the absolute terminal belief
+   `R_stop(b) = w_q b`, whereas `step_reward` contains only the incremental gain
+   `w_q (b' - b)`. Comparing the two makes `STOP` win as soon as `b` exceeds the
+   expected one-step gain, which is after the first retrieval, so the old controller
+   always stopped after one hop. A one-step lookahead with the terminal value of the
+   posterior as the value-to-go is used instead:
+   $U(a) = r_{\text{step}}(a) + R_{\text{stop}}(b) = R_{\text{stop}}(b') - \text{penalties}$,
+   so both sides are `terminal(b) - penalties` and an action is taken only if its
+   expected gain exceeds its cost (`GreedyPolicy._continue_utility`).
+2. **A real sufficiency sensor.** `VALIDATE_EVIDENCE` is an LLM judge over the gathered
+   evidence. Its verdict is a noisy observation of the hidden "evidence is sufficient"
+   state with true/false-positive rates `tpr`, `fpr`
+   (`BeliefUpdater.sensor_tpr = 0.9`, `sensor_fpr = 0.2`, assumed, not estimated), and the
+   belief is updated by exact Bayes
+   $b' = \dfrac{b\,\ell_s}{b\,\ell_s + (1-b)\,\ell_n}$ (`judge_posterior`). Its value is
+   the expected value of information: the judge's outcome probabilities and posteriors
+   come from Bayes' rule, and each outcome is valued by the best follow-up action
+   (`GreedyPolicy._validate_utility`). It is never assumed. The cost is the actual token
+   cost of the call.
+
+With `LLM_ACTIONS=true`, `REFORMULATE_QUERY` is also a real LLM rewrite (the new query is
+stored in `state.query`) and `ITERATIVE_RETRIEVAL=true` makes every retrieval after the
+first search for the missing information (an LLM-written follow-up query, billed), so
+retrieval depth can change the evidence. All strategies share these mechanisms; only the
+decision rule differs. The reward weights, in particular `REWARD_COST_WEIGHT` (the quality
+the controller would give up per US dollar), are chosen on the validation split only
+(`scripts/pick_cost_weight.py`).
+
 ### 7.2 Value-iteration policy — `ValueIterationPolicy` (extension point)
 
 File: [backend/app/core/pomdp/policy_value_iteration.py](../backend/app/core/pomdp/policy_value_iteration.py)
@@ -210,11 +243,19 @@ evaluation harness swap them transparently.
 - **Fixed RAG** ([fixed_rag.py](../backend/app/core/baselines/fixed_rag.py)) —
   retrieve exactly `N` sources, then STOP. No belief, no cost model.
 - **Self-RAG** ([self_rag.py](../backend/app/core/baselines/self_rag.py)) —
-  reflect after each hop and STOP when judged sufficient (belief ≥ threshold).
-  **No cost/latency/redundancy model** — the key contrast with the POMDP.
+  reflect after each hop and STOP when judged sufficient. With `LLM_ACTIONS=true` the
+  reflection is a real LLM call after **every** retrieval and the policy follows its
+  verdict alone (never the belief); otherwise a belief threshold stands in for it.
+  **No cost/latency/redundancy model** — the key contrast with the POMDP, which pays for a
+  judgement only when its expected value of information exceeds the cost and otherwise
+  stops on its belief. Each reflection consumes a hop under the shared cap.
 - **Adaptive RAG** ([adaptive_rag.py](../backend/app/core/baselines/adaptive_rag.py)) —
-  classify query complexity **once upfront** → fixed retrieval depth per class.
-  **No mid-query re-evaluation.**
+  classify query complexity **once upfront** (one LLM classification call with
+  `LLM_ACTIONS=true`, a transparent heuristic otherwise) → fixed retrieval depth per
+  class. **No mid-query re-evaluation.**
+
+These are re-implementations in this framework with the same LLM, not the original
+systems (Self-RAG fine-tunes a critic model; Adaptive-RAG trains a classifier).
 
 ---
 

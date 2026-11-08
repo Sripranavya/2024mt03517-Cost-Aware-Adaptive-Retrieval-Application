@@ -25,6 +25,7 @@ Two hard guardrails override the optimisation:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from app.core.pomdp.actions import (
@@ -32,6 +33,7 @@ from app.core.pomdp.actions import (
     ActionType,
     RetrievalSource,
     all_candidate_actions,
+    all_retrieval_actions,
 )
 from app.core.pomdp.belief import BeliefUpdater
 from app.core.pomdp.observation import Observation
@@ -48,6 +50,14 @@ class Policy(ABC):
     def decide_next_action(self, state: POMDPState) -> Action:
         """Return the next action to execute from ``state``."""
         raise NotImplementedError
+
+    def route(self, query: str, classify: Callable[[str], str]) -> int | None:
+        """Optional up-front routing; return a retrieval depth or ``None``.
+
+        ``classify`` sends a prompt to the (billed) LLM and returns its reply. Policies
+        must stay stateless so one instance can serve concurrent requests.
+        """
+        return None
 
 
 @dataclass(frozen=True)
@@ -163,20 +173,65 @@ class GreedyPolicy(Policy):
             return VALIDATE_COST
         return 0.0
 
-    def expected_utility(self, state: POMDPState, action: Action) -> float:
-        """Expected one-step utility of taking ``action`` from ``state``."""
-        if action.type is ActionType.STOP:
-            return self.reward_fn.terminal_reward(state.evidence_confidence)
+    def _continue_utility(self, state: POMDPState, action: Action) -> float:
+        """One-step lookahead value of a non-stop action.
 
+        ``step_reward`` contains the incremental quality gain, whereas STOP is valued
+        with the absolute terminal belief. Adding the terminal value of the *current*
+        belief makes both sides ``terminal(b') - penalties`` so they are comparable;
+        otherwise STOP wins as soon as the belief exceeds the expected one-step gain.
+        """
         obs = self.expected_observation(state, action)
         posterior = self.belief_updater.update(state.evidence_confidence, obs)
-        return self.reward_fn.step_reward(
+        step = self.reward_fn.step_reward(
             action=action,
             prior_confidence=state.evidence_confidence,
             posterior_confidence=posterior,
             cost_usd=self._expected_cost(action),
             observation=obs,
         )
+        return step + self.reward_fn.terminal_reward(state.evidence_confidence)
+
+    def _value_after_judgement(self, state: POMDPState, belief: float) -> float:
+        """Best achievable one-step value once the belief has become ``belief``."""
+        stop = self.reward_fn.terminal_reward(belief)
+        if belief >= self.stop_threshold:
+            return stop
+        hypothetical = state.model_copy(update={"evidence_confidence": belief})
+        return max(
+            [stop]
+            + [self._continue_utility(hypothetical, a) for a in all_retrieval_actions()]
+        )
+
+    def _validate_utility(self, state: POMDPState) -> float:
+        """Expected value of information of an LLM sufficiency check.
+
+        The judge is a noisy sensor of the hidden "evidence is sufficient" state, so
+        its outcome distribution and the resulting beliefs follow from Bayes' rule;
+        nothing about the outcome is assumed.
+        """
+        b = state.evidence_confidence
+        updater = self.belief_updater
+        p_yes = updater.judge_yes_probability(b)
+        value = p_yes * self._value_after_judgement(
+            state, updater.judge_posterior(b, True)
+        ) + (1.0 - p_yes) * self._value_after_judgement(
+            state, updater.judge_posterior(b, False)
+        )
+        cfg = self.reward_fn.config
+        penalty = (
+            cfg.cost_weight * self._expected_cost(Action.validate_evidence())
+            + cfg.latency_weight * VALIDATE_LATENCY_MS / 1000.0
+        )
+        return value - penalty
+
+    def expected_utility(self, state: POMDPState, action: Action) -> float:
+        """Expected one-step utility of taking ``action`` from ``state``."""
+        if action.type is ActionType.STOP:
+            return self.reward_fn.terminal_reward(state.evidence_confidence)
+        if action.type is ActionType.VALIDATE_EVIDENCE:
+            return self._validate_utility(state)
+        return self._continue_utility(state, action)
 
     # --- policy interface -------------------------------------------------------
     def decide_next_action(self, state: POMDPState) -> Action:

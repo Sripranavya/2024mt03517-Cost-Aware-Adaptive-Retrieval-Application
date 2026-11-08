@@ -15,12 +15,14 @@ feedback* pattern, not the classifier's sophistication.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from enum import Enum
 
 from app.core.baselines.source_rotation import next_source
 from app.core.pomdp.actions import Action
 from app.core.pomdp.policy import Policy
 from app.core.pomdp.state import POMDPState
+from app.core.prompts import build_route_prompt
 
 
 class QueryComplexity(str, Enum):
@@ -66,11 +68,21 @@ def classify_complexity(query: str) -> QueryComplexity:
 
 
 class AdaptiveRAGPolicy(Policy):
-    """Route once on complexity to a fixed retrieval depth; no re-evaluation."""
+    """Route once on complexity to a fixed retrieval depth; no re-evaluation.
+
+    With ``use_llm_router=True`` the complexity class comes from one billed LLM
+    classification call before retrieval starts (Adaptive-RAG's query classifier);
+    otherwise the transparent heuristic above is used.
+    """
 
     name = "adaptive"
 
-    def __init__(self, depth_by_class: dict[QueryComplexity, int] | None = None) -> None:
+    def __init__(
+        self,
+        depth_by_class: dict[QueryComplexity, int] | None = None,
+        use_llm_router: bool = False,
+    ) -> None:
+        self.use_llm_router = use_llm_router
         self.depth_by_class = depth_by_class or {
             QueryComplexity.SIMPLE: 1,
             QueryComplexity.MODERATE: 3,
@@ -80,8 +92,19 @@ class AdaptiveRAGPolicy(Policy):
             if depth < 1:
                 raise ValueError(f"depth for {cls.value} must be >= 1")
 
+    def route(self, query: str, classify: Callable[[str], str]) -> int | None:
+        if not self.use_llm_router:
+            return None
+        reply = classify(build_route_prompt(query)).strip().lower()
+        for complexity in QueryComplexity:
+            if reply.startswith(complexity.value):
+                return self.depth_by_class[complexity]
+        return self.depth_by_class[classify_complexity(query)]  # unusable reply
+
     def target_depth(self, state: POMDPState) -> int:
         """Depth this query is routed to (classified from the original query)."""
+        if state.route_depth is not None:
+            return state.route_depth
         complexity = classify_complexity(state.original_query)
         return self.depth_by_class[complexity]
 

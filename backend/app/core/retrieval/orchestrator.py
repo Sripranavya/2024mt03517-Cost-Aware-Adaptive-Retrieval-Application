@@ -31,7 +31,14 @@ from app.core.pomdp.observation import Observation
 from app.core.pomdp.policy import Policy
 from app.core.pomdp.reward import RewardFunction
 from app.core.pomdp.state import POMDPState
-from app.core.prompts import build_answer_prompt
+from app.core.prompts import (
+    build_answer_prompt,
+    build_followup_prompt,
+    build_judge_prompt,
+    build_reformulation_prompt,
+    parse_followup_query,
+    parse_yes,
+)
 from app.core.retrieval.base import RetrievalResult
 from app.core.retrieval.source_connectors import SourceConnector
 
@@ -92,6 +99,9 @@ class RetrievalOrchestrator:
         min_marginal_gain: float = 0.0,
         low_gain_patience: int = 2,
         short_answers: bool = False,
+        iterative_retrieval: bool = False,
+        llm_actions: bool = False,
+        answer_docs: int = 0,
     ) -> None:
         self.connectors = connectors
         self.evaluator = evaluator
@@ -109,7 +119,36 @@ class RetrievalOrchestrator:
         self.min_marginal_gain = max(0.0, min_marginal_gain)
         self.low_gain_patience = max(1, low_gain_patience)
         self.short_answers = short_answers
-    # --- action execution -------------------------------------------------------
+        self.iterative_retrieval = iterative_retrieval
+        self.llm_actions = llm_actions
+        self.answer_docs = max(0, answer_docs)
+
+    def _llm(
+        self, label: str, prompt: str, cost_tracker: CostTracker, max_tokens: int = 64
+    ) -> tuple[str, float]:
+        """One billed LLM call; tokens and latency are recorded, USD returned."""
+        with LatencyTimer() as timer:
+            response = self.llm.generate(prompt, max_tokens=max_tokens)
+        cost_tracker.record(
+            label, response.input_tokens, response.output_tokens, timer.elapsed_ms
+        )
+        usd = cost_tracker.estimate_usd(response.input_tokens, response.output_tokens)
+        return response.text.strip(), usd
+
+    def _evidence_for_prompts(self, hops: list[list[Document]]) -> list[Document]:
+        """Top documents per hop (round-robin), de-duplicated, for judge/follow-up prompts."""
+        return self._interleave(hops, 6)
+
+    @staticmethod
+    def _interleave(hops: list[list[Document]], cap: int) -> list[Document]:
+        seen: set[str] = set()
+        out: list[Document] = []
+        for rank in range(max((len(h) for h in hops), default=0)):
+            for hop in hops:
+                if rank < len(hop) and hop[rank].id not in seen and len(out) < cap:
+                    seen.add(hop[rank].id)
+                    out.append(hop[rank])
+        return out    # --- action execution -------------------------------------------------------
     def _retrieve_with_retry(
         self, connector: SourceConnector, query: str
     ) -> RetrievalResult:
@@ -144,7 +183,7 @@ class RetrievalOrchestrator:
         state: POMDPState,
         acc: EvidenceAccumulator,
         cost_tracker: CostTracker,
-        collected: list[Document],
+        collected: list[list[Document]],
     ) -> tuple[Observation, float, str, set[str], bool]:
         """Execute a non-terminal action.
 
@@ -152,11 +191,22 @@ class RetrievalOrchestrator:
         """
         if action.type is ActionType.RETRIEVE:
             connector = self.connectors[action.source]
-            result = self._retrieve_with_retry(connector, state.query)
+            query, extra_cost = state.query, 0.0
+            if self.iterative_retrieval and collected:
+                # Later hops search for what is still missing, not the same question.
+                text, extra_cost = self._llm(
+                    "followup_query",
+                    build_followup_prompt(
+                        state.original_query, self._evidence_for_prompts(collected)
+                    ),
+                    cost_tracker,
+                )
+                query = parse_followup_query(text, state.query)
+            result = self._retrieve_with_retry(connector, query)
             obs = self.evaluator.observe(result, acc)
             new_ids = {d.id for d in result.documents}
-            collected.extend(result.documents)
-            cost = cost_tracker.estimate_usd(0, 0)  # retrieval tokens tracked via LLM
+            collected.append(list(result.documents))
+            cost = cost_tracker.estimate_usd(0, 0) + extra_cost
             cost_tracker.record(
                 label=f"retrieve:{action.source.value}",
                 input_tokens=0,
@@ -168,21 +218,35 @@ class RetrievalOrchestrator:
             return obs, cost, result.query_used, new_ids, result.injection_flagged
 
         if action.type is ActionType.REFORMULATE_QUERY:
-            obs, cost = self._reformulate(state, cost_tracker)
-            return obs, cost, state.query, set(), False
+            obs, cost, new_query = self._reformulate(state, cost_tracker)
+            return obs, cost, new_query, set(), False
 
         if action.type is ActionType.VALIDATE_EVIDENCE:
-            obs, cost = self._validate(state, cost_tracker)
+            obs, cost = self._validate(state, cost_tracker, collected)
             return obs, cost, state.query, set(), False
 
         return Observation.empty(), 0.0, state.query, set(), False
 
     def _reformulate(
         self, state: POMDPState, cost_tracker: CostTracker
-    ) -> tuple[Observation, float]:
+    ) -> tuple[Observation, float, str]:
         b = state.evidence_confidence
+        if self.llm_actions:
+            # Real rewrite; no evidence is gained, so the observation carries zero
+            # confidence and the belief is unchanged. Its effect is the new query.
+            text, cost = self._llm(
+                "reformulate", build_reformulation_prompt(state.query), cost_tracker
+            )
+            new_query = parse_followup_query(text, state.query)
+            obs = Observation(
+                relevance_signal=0.0,
+                evidence_coverage=b,
+                confidence=0.0,
+                source_response_time_ms=0.0,
+            )
+            return obs, cost, new_query
         with LatencyTimer() as timer:
-            # A reformulation LLM call would happen here; the mock keeps it cheap.
+            # Mock mode: no model call, so the query is left unchanged.
             pass
         obs = Observation(
             relevance_signal=0.4 * (1.0 - b),
@@ -192,12 +256,35 @@ class RetrievalOrchestrator:
             new_documents=1,
         )
         cost_tracker.record("reformulate", 0, 0, timer.elapsed_ms)
-        return obs, self.reformulate_cost
+        return obs, self.reformulate_cost, state.query
 
     def _validate(
-        self, state: POMDPState, cost_tracker: CostTracker
+        self,
+        state: POMDPState,
+        cost_tracker: CostTracker,
+        collected: list[list[Document]] | None = None,
     ) -> tuple[Observation, float]:
         b = state.evidence_confidence
+        if self.llm_actions:
+            # Real sufficiency verdict from the LLM judge over the gathered evidence.
+            text, cost = self._llm(
+                "validate",
+                build_judge_prompt(
+                    state.original_query, self._evidence_for_prompts(collected or [])
+                ),
+                cost_tracker,
+                max_tokens=8,
+            )
+            sufficient = parse_yes(text)
+            obs = Observation(
+                relevance_signal=1.0 if sufficient else 0.0,
+                evidence_coverage=b,
+                confidence=0.9,
+                source_response_time_ms=0.0,
+                new_documents=1,
+                judgement=sufficient,
+            )
+            return obs, cost
         with LatencyTimer() as timer:
             pass
         target = 1.0 if b >= 0.5 else 0.0
@@ -217,8 +304,21 @@ class RetrievalOrchestrator:
         acc = self.evaluator.new_accumulator(query)
         cost_tracker = CostTracker(self.price_in, self.price_out)
         trace: list[TraceStep] = []
-        collected: list[Document] = []
+        collected: list[list[Document]] = []
         low_gain_streak = 0
+
+        if self.llm_actions:
+            # Optional up-front routing (Adaptive-RAG): one billed classification call.
+            def classify(prompt: str) -> str:
+                text, usd = self._llm("route", prompt, cost_tracker, max_tokens=8)
+                nonlocal route_cost
+                route_cost += usd
+                return text
+
+            route_cost = 0.0
+            depth = policy.route(query, classify)
+            if depth is not None:
+                state = state.with_updates(route_depth=depth, added_cost=route_cost)
 
         # Hard safety cap: never exceed max_hops iterations regardless of policy.
         for _ in range(max_hops):
@@ -256,6 +356,8 @@ class RetrievalOrchestrator:
                 added_cost=cost,
                 increment_hop=True,
                 new_document_ids=new_ids,
+                judgement=obs.judgement,
+                query=query_used if action.type is ActionType.REFORMULATE_QUERY else None,
             )
             trace.append(
                 TraceStep(
@@ -288,17 +390,22 @@ class RetrievalOrchestrator:
         )
 
     def _generate_answer(
-        self, query: str, collected: list[Document], cost_tracker: CostTracker
+        self, query: str, collected: list[list[Document]], cost_tracker: CostTracker
     ) -> tuple[str, list[Document]]:
-        # De-duplicate by id, keep the highest-scoring instances first.
-        seen: set[str] = set()
-        unique: list[Document] = []
-        for doc in sorted(collected, key=lambda d: d.score, reverse=True):
-            if doc.id in seen:
-                continue
-            seen.add(doc.id)
-            unique.append(doc)
-        top = unique[: self.k]
+        if self.iterative_retrieval or self.answer_docs:
+            # Every hop contributes its best passages (round-robin) up to the cap.
+            top = self._interleave(collected, self.answer_docs or self.k)
+        else:
+            # De-duplicate by id, keep the highest-scoring instances first.
+            seen: set[str] = set()
+            unique: list[Document] = []
+            flat = [d for hop in collected for d in hop]
+            for doc in sorted(flat, key=lambda d: d.score, reverse=True):
+                if doc.id in seen:
+                    continue
+                seen.add(doc.id)
+                unique.append(doc)
+            top = unique[: self.k]
         prompt = build_answer_prompt(query, top, short=self.short_answers)
         with LatencyTimer() as timer:
             response = self.llm.generate(prompt)

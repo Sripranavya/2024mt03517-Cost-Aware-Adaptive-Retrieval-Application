@@ -47,9 +47,15 @@ class BeliefUpdater:
         relevance_weight: float = 0.6,
         coverage_weight: float = 0.4,
         redundancy_decay: float = 0.02,
+        sensor_tpr: float = 0.9,
+        sensor_fpr: float = 0.2,
     ) -> None:
         if not 0.0 <= learning_rate <= 1.0:
             raise ValueError("learning_rate must be in [0, 1]")
+        if not 0.0 <= sensor_fpr < sensor_tpr <= 1.0:
+            raise ValueError("sensor model requires 0 <= fpr < tpr <= 1")
+        self.sensor_tpr = sensor_tpr
+        self.sensor_fpr = sensor_fpr
         if relevance_weight < 0 or coverage_weight < 0:
             raise ValueError("weights must be non-negative")
         total = relevance_weight + coverage_weight
@@ -68,10 +74,29 @@ class BeliefUpdater:
             + self.coverage_weight * obs.evidence_coverage
         )
 
+    def judge_posterior(self, prior: float, sufficient: bool) -> float:
+        """Exact Bayes update for a noisy sufficiency judge.
+
+        The judge says "sufficient" with probability ``sensor_tpr`` when the evidence
+        really is sufficient and ``sensor_fpr`` when it is not.
+        """
+        tpr, fpr = self.sensor_tpr, self.sensor_fpr
+        like_s, like_n = (tpr, fpr) if sufficient else (1.0 - tpr, 1.0 - fpr)
+        denom = prior * like_s + (1.0 - prior) * like_n
+        return prior if denom <= 0 else prior * like_s / denom
+
+    def judge_yes_probability(self, prior: float) -> float:
+        """Predictive probability that the judge answers "sufficient"."""
+        return prior * self.sensor_tpr + (1.0 - prior) * self.sensor_fpr
+
     def update(self, prior: float, obs: Observation) -> float:
         """Return the posterior belief given a prior in [0, 1] and an observation."""
         if not 0.0 <= prior <= 1.0:
             raise ValueError("prior belief must be in [0, 1]")
+
+        # An LLM sufficiency verdict is a direct (noisy) observation of the hidden state.
+        if obs.judgement is not None:
+            return self.judge_posterior(prior, obs.judgement)
 
         # Redundant observation: gently decay, never reward.
         if obs.is_redundant:

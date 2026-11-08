@@ -22,6 +22,8 @@ class Observation(BaseModel):
         source_response_time_ms: Wall-clock latency of the action in ms.
         new_documents: Number of *new* (non-duplicate) documents obtained.
         duplicate_documents: Number of already-seen documents returned.
+        judgement: For a VALIDATE action, the sufficiency verdict returned by the
+            LLM judge (True = sufficient); ``None`` for every other action.
     """
 
     relevance_signal: float = Field(ge=0.0, le=1.0)
@@ -30,6 +32,7 @@ class Observation(BaseModel):
     source_response_time_ms: float = Field(ge=0.0)
     new_documents: int = Field(default=0, ge=0)
     duplicate_documents: int = Field(default=0, ge=0)
+    judgement: bool | None = None
 
     model_config = {"frozen": True}
 

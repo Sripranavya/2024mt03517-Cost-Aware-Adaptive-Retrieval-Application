@@ -41,6 +41,8 @@ class POMDPState(BaseModel):
     hop_count: int = Field(default=0, ge=0)
     seen_document_ids: set[str] = Field(default_factory=set)
     max_hops: int = Field(default=DEFAULT_MAX_HOPS, ge=1)
+    last_judgement: bool | None = None  # verdict of the last VALIDATE, reset by any other action
+    route_depth: int | None = None  # retrieval depth chosen up-front by a router
 
     @model_validator(mode="after")
     def _check_hop_cap(self) -> POMDPState:
@@ -80,6 +82,8 @@ class POMDPState(BaseModel):
         added_cost: float = 0.0,
         increment_hop: bool = False,
         new_document_ids: set[str] | None = None,
+        judgement: bool | None = None,
+        route_depth: int | None = None,
     ) -> POMDPState:
         """Return a new state with the given immutable updates applied.
 
@@ -105,4 +109,6 @@ class POMDPState(BaseModel):
             hop_count=self.hop_count + (1 if increment_hop else 0),
             seen_document_ids=seen,
             max_hops=self.max_hops,
+            last_judgement=judgement,
+            route_depth=route_depth if route_depth is not None else self.route_depth,
         )

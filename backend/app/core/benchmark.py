@@ -32,6 +32,26 @@ def from_hf_row(row: dict) -> dict:
     }
 
 
+def from_musique_row(row: dict) -> dict | None:
+    """Convert a MuSiQue row to the HotpotQA layout; ``None`` for unanswerable rows.
+
+    The id prefix (``2hop__``, ``3hop1__``, ``4hop2__``) gives the number of reasoning
+    hops, kept as ``hops`` and used as the difficulty axis of the stopping study.
+    """
+    if not row.get("answerable", True):
+        return None
+    hops = int(row["id"][0]) if row["id"][:1].isdigit() else 0
+    return {
+        "_id": row["id"],
+        "question": row["question"],
+        "answer": row["answer"],
+        "type": "bridge",
+        "level": f"{hops}hop",
+        "hops": hops,
+        "context": [[p["title"], [p["paragraph_text"]]] for p in row["paragraphs"]],
+    }
+
+
 def total_cost(llm_cost_usd: float, hops: float, per_retrieval_usd: float) -> float:
     """Per-query cost when every retrieval hop also costs ``per_retrieval_usd``."""
     return llm_cost_usd + hops * per_retrieval_usd
@@ -49,6 +69,22 @@ def break_even_price(base: dict, other: dict) -> float | None:
         return None
     price = (float(base["avg_cost_usd"]) - float(other["avg_cost_usd"])) / d_hops
     return max(0.0, price)
+
+
+def pick_cost_weight(
+    candidates: list[tuple[float, float, float]], tol: float = 0.02
+) -> float:
+    """Choose the reward cost weight from validation results.
+
+    ``candidates`` are ``(cost_weight, f1, avg_cost_usd)``. Rule, fixed in advance:
+    keep every weight whose F1 is within ``tol`` of the best F1, then take the one
+    with the lowest mean cost (ties: the smaller weight). Only validation data is used.
+    """
+    if not candidates:
+        raise ValueError("no candidates")
+    best_f1 = max(f1 for _, f1, _ in candidates)
+    eligible = [c for c in candidates if c[1] >= best_f1 - tol]
+    return min(eligible, key=lambda c: (c[2], c[0]))[0]
 
 
 def split_of(qid: str, seed: int = 13) -> str:
@@ -78,16 +114,21 @@ def make_splits(
 
 
 def passages(rows: Iterable[dict]) -> list[Document]:
-    """Unique paragraphs (by title) from every row's context, as Documents."""
+    """Unique paragraphs from every row's context, as Documents.
+
+    Keyed by (title, text): distractor paragraphs in some datasets reuse a title for
+    different content, so a title-only key would silently overwrite documents.
+    """
     seen: dict[str, Document] = {}
     for row in rows:
         for title, sentences in row.get("context", []):
-            if title in seen:
-                continue
             text = " ".join(s.strip() for s in sentences).strip()
-            if text:
-                seen[title] = Document(
-                    id=f"hp-{hashlib.sha1(title.encode()).hexdigest()[:16]}",
+            if not text:
+                continue
+            key = hashlib.sha1(f"{title}\n{text}".encode()).hexdigest()[:16]
+            if key not in seen:
+                seen[key] = Document(
+                    id=f"p-{key}",
                     text=f"{title}. {text}",
                     source="local_corpus",
                     title=title,
@@ -103,13 +144,16 @@ COMPLEX_MIN_WORDS = 20
 
 
 def categorize(row: dict) -> list[str]:
-    """Stopping-study categories for a HotpotQA row (a row can be in several).
+    """Stopping-study categories for a row (a row can be in several).
 
+    MuSiQue rows carry ``hops`` (2 to 4 reasoning steps) and map to ``hops_<n>``.
     HotpotQA dev only has ``level == "hard"``, so difficulty comes from structure:
     ``easy`` = comparison questions (both entities are named in the question),
     ``multi_hop`` = bridge questions (the second entity must be discovered), and
     ``complex`` = bridge questions with long (>= 20 words) multi-clause wording.
     """
+    if row.get("hops"):
+        return [f"hops_{row['hops']}"]
     cats: list[str] = []
     is_bridge = row.get("type") == "bridge"
     if row.get("type") == "comparison":

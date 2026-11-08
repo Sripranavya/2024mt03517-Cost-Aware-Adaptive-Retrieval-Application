@@ -15,6 +15,7 @@ Everything runs in local-mock mode by default (no AWS, no network).
 from __future__ import annotations
 
 import math
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from functools import lru_cache
 
@@ -129,8 +130,14 @@ class Engine:
             min_marginal_gain=settings.min_marginal_gain,
             low_gain_patience=settings.low_gain_patience,
             short_answers=settings.short_answers,
+            iterative_retrieval=settings.iterative_retrieval,
+            llm_actions=settings.llm_actions,
+            answer_docs=settings.answer_docs,
         )
         self._policies = self._build_policies()
+        if settings.single_source_corpus:
+            for connector in self.orchestrator.connectors.values():
+                connector.filter_source = "local_corpus"
 
     def _seed_if_empty(self) -> None:
         """Index the bundled sample corpus if the vector store is empty."""
@@ -176,8 +183,8 @@ class Engine:
             ),
             "pomdp_quality": quality_only,
             "fixed": FixedRAGPolicy(n_retrievals=3),
-            "self_rag": SelfRAGPolicy(),
-            "adaptive": AdaptiveRAGPolicy(),
+            "self_rag": SelfRAGPolicy(use_llm_judge=self.settings.llm_actions),
+            "adaptive": AdaptiveRAGPolicy(use_llm_router=self.settings.llm_actions),
             "crag": CorrectiveRAGPolicy(),
             "flare": FLAREPolicy(),
             "rag_fusion": RAGFusionPolicy(),
@@ -209,12 +216,21 @@ class Engine:
         return max(0.0, dot / (na * nb))
 
     def evaluate_batch(
-        self, items: list[dict[str, str]], strategies: list[str] | None = None
+        self,
+        items: list[dict[str, str]],
+        strategies: list[str] | None = None,
+        workers: int = 1,
     ) -> list[StrategyMetrics]:
         """Run strategies over labelled queries and aggregate metrics."""
         strategies = strategies or list(STRATEGIES)
         out: list[StrategyMetrics] = []
         for strategy in strategies:
+            runs = None
+            if workers > 1:
+                with ThreadPoolExecutor(max_workers=workers) as pool:
+                    runs = list(
+                        pool.map(lambda it, s=strategy: self.run_query(it["query"], s), items)
+                    )
             accs: list[float] = []
             ems: list[float] = []
             f1s: list[float] = []
@@ -226,8 +242,8 @@ class Engine:
             hops: list[float] = []
             successes: list[float] = []
             per_item: list[dict] = []
-            for item in items:
-                result = self.run_query(item["query"], strategy)
+            for idx, item in enumerate(items):
+                result = runs[idx] if runs is not None else self.run_query(item["query"], strategy)
                 reference = item["reference"]
                 accs.append(self._cosine(result.answer, reference))
                 precision, recall, f1 = token_scores(result.answer, reference)

@@ -49,19 +49,25 @@ Cognito login, Titan embedding, OpenSearch k-NN (SigV4), DynamoDB, S3 and Claude
 through `POST /api/v1/query`. One query cost about US$0.0006.
 
 ## 6. Benchmark and stopping study
+One resumable driver runs everything for HotpotQA and MuSiQue (multi-hop, 2 to 4 hops):
+download, a validation sweep of the reward cost weight, baselines on validation, weight
+selection (validation only), the test split and the stopping study.
 ```
-export OPENSEARCH_INDEX=hotpot-v1 LIVE_SOURCES=false SEED_SAMPLE_CORPUS=false
-python scripts/run_benchmark.py --download                       # HotpotQA dev, fixed seed 13
-python scripts/run_benchmark.py --split val  --max-per-split 50  # tune on validation only
-python scripts/run_benchmark.py --split test --max-per-split 200 # final report
-python scripts/run_benchmark.py --study --split test --max-per-split 30   # stopping rule by category
-python scripts/cost_sensitivity.py results/benchmark_test.csv             # hops -> dollars scenarios
+cd ~ && unzip -o project-cloudshell.zip; chmod -R u+rwX ~/backend ~/scripts
+nohup bash ~/scripts/run_all.sh > ~/run_all.log 2>&1 &
+tail -5 ~/run_all.log          # re-run the nohup line after any interruption; done steps are skipped
 ```
-Use a separate `OPENSEARCH_INDEX` per run (for example `hotpot-test`, `hotpot-study`) so
-corpora stay independent, and a fresh index name after changing how passages are tagged.
-`SHORT_ANSWERS=true` is the benchmark default, so EM/F1 compare short spans.
-Outputs `results/benchmark_<split>.csv`, `results/stopping_study.csv`, `results/splits.json`.
-See `docs/COST_ANALYSIS.md` for how to read them.
+Environment overrides: `DATASETS="hotpotqa"` (one dataset), `WORKERS=3`, `VAL_N=30`,
+`TEST_N=80`, `STUDY_N=40`, `WEIGHTS="0.15 5 20 60"`, `MAX_BUDGET_USD=30`. Outputs go to
+`results/hp/` and `results/mq/` (`test/`, `study/`, `val_*`, `summary.txt`, and the chosen
+`chosen_cost_weight.txt`); each run also writes `config.json` with the flags used.
+
+Defaults: iterative retrieval, LLM-backed actions, a single shared corpus, `ANSWER_DOCS=8`
+and short answers. To reproduce the earlier static-query experiment A, set
+`ITERATIVE_RETRIEVAL=false LLM_ACTIONS=false SINGLE_SOURCE_CORPUS=false ANSWER_DOCS=0`.
+Each run uses its own `OPENSEARCH_INDEX` (`hp-val`, `hp-test`, `hp-study`, ...) and an
+index marker under `results/.index_markers/` so an interrupted indexing run is redone.
+See `docs/COST_ANALYSIS.md` and `docs/RESULTS.md` for how to read the results.
 
 ## 7. Pause and teardown
 Only OpenSearch bills while idle and it cannot be stopped. To stop that cost:

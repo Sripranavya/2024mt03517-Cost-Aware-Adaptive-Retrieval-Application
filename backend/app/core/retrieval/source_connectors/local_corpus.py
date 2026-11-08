@@ -28,7 +28,9 @@ class SourceConnector(ABC):
     """Base class: dense search over the seeded corpus filtered by source."""
 
     source_name: str
-
+    # When set, every connector searches documents tagged with this source instead of
+    # its own name (benchmarks index one corpus that all "sources" must share).
+    filter_source: str | None = None
     def __init__(
         self,
         embedder: EmbeddingClient,
@@ -44,7 +46,8 @@ class SourceConnector(ABC):
         embedding = self.embedder.embed(query)
         # Over-fetch then filter by source so a shared index can serve every source.
         candidates = self.vector_store.search(embedding, k * self.overfetch)
-        filtered = [d for d in candidates if d.source == self.source_name]
+        wanted = self.filter_source or self.source_name
+        filtered = [d for d in candidates if d.source == wanted]
         return filtered[:k]
 
     def _sanitize(self, documents: list[Document]) -> tuple[list[Document], bool]:

@@ -81,7 +81,7 @@ class BedrockEmbeddingClient(EmbeddingClient):
             config=Config(
                 connect_timeout=5,
                 read_timeout=30,
-                retries={"max_attempts": 3, "mode": "standard"},
+                retries={"max_attempts": 8, "mode": "adaptive"},
             ),
         )
 
