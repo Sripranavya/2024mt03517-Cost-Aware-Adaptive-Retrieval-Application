@@ -134,6 +134,25 @@ everywhere. Latency is significantly lower in some cells (for example easy vs fi
 -360 ms, complex vs self_rag -504 ms) and not distinguishable in others (multi_hop,
 most conflicting cells).
 
+## Ablation: cost-based reward vs quality-only (test, n=80, same controller)
+The quality-only variant is the same greedy controller with the cost, latency and
+redundancy reward terms set to 0 (`pomdp_quality`). Fixed-depth and heuristic-routing
+variants are `fixed` and `adaptive` in the main test runs.
+
+| Dataset | Variant | F1 | USD/query | Hops | Latency (ms) |
+|---|---|---|---|---|---|
+| HotpotQA | Full cost-based POMDP | 0.651 | 0.00245 | 2.1 | 4,446 |
+| HotpotQA | Quality-only POMDP | 0.667 | 0.00388 | 4.4 | 8,468 |
+| MS MARCO | Full cost-based POMDP | 0.325 | 0.00107 | 1.01 | 1,057 |
+| MS MARCO | Quality-only POMDP | 0.338 | 0.00264 | 3.33 | 6,889 |
+
+Paired bootstrap 95% CIs (full minus quality-only): cost -0.00143 [-0.00164, -0.00122]
+(HotpotQA) and -0.00158 [-0.00181, -0.00134] (MS MARCO); hops about -2.3 and latency 4 to 6
+seconds lower on both; F1 -0.016 [-0.053, +0.022] and -0.014 [-0.045, +0.013], not
+significant. The cost-aware reward is what produces the saving. "No significant F1 loss"
+is the claim, not "equal quality". The full POMDP scored F1 0.651 here and 0.667 in the
+main test run at the same weight, so differences below about 0.02 F1 are noise.
+
 ## What the evidence supports
 - **No measurable accuracy loss** in any category: no F1 interval excludes 0.
 - **Fewer retrieval hops everywhere:** POMDP stops after one retrieval, so it uses 2 to

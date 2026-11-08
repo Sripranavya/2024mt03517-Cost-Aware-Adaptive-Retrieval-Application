@@ -40,8 +40,15 @@ and must not be presented as evidence. Replace with:
   The POMDP matches the best fixed depth on this 2-hop dataset; it does not beat Fixed-2.
 - **Table D (stopping study).** On HotpotQA the POMDP used 2.0 hops in every category
   (7 to 40 queries each), so no per-category adaptivity is claimed.
-- **Table E (MS MARCO, single hop).** TBD from `results/msv2/summary.txt`.
-- **Ablation.** Full POMDP vs quality-only: TBD from `results/*/ablation_summary.txt`.
+- **Table E (MS MARCO, single hop, test n=60).** Fixed-1 F1 0.333 at 0.00106 USD/query;
+  POMDP (weight 60) 0.323 at 0.00107 and 1.02 hops; Fixed-2 0.336 at 0.00200; Fixed-3 0.334
+  at 0.00290; Self-RAG 0.338 at 0.00191; Adaptive-RAG 0.330 at 0.00120. The POMDP matches the
+  best fixed depth (about 63% cheaper than Fixed-3); it does not beat Fixed-1. Absolute F1
+  is low because references are full sentences; compare strategies only.
+- **Ablation.** Full POMDP vs quality-only: cost -0.00143 USD/query [-0.00164, -0.00122] on
+  HotpotQA and -0.00158 [-0.00181, -0.00134] on MS MARCO (n=80 each), about 2.3 fewer hops,
+  F1 difference not significant (-0.016 and -0.014). Fixed-Depth = `fixed`, Heuristic
+  Routing = `adaptive`, in the main test tables.
 - **Retrieval price scenarios** from `cost_sensitivity.py`, labelled as assumptions.
 
 ## 3. Ablations promised in the report
