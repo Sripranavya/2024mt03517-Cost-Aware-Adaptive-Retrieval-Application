@@ -66,7 +66,8 @@ Write-Host ""
 Write-Host "Backend  : http://localhost:8000/docs" -ForegroundColor Cyan
 Write-Host "Frontend : http://localhost:5173" -ForegroundColor Cyan
 Write-Host "Index    : $Index (live OpenSearch)" -ForegroundColor Cyan
-Write-Host "Sign in  : any username; the password is now in your clipboard (paste it)." -ForegroundColor Yellow
+Write-Host "Sign in  : username 'demo' (any name works)" -ForegroundColor Yellow
+Write-Host "Password : $demoPassword   (also copied to the clipboard)" -ForegroundColor Yellow
 Write-Host "Keys expire after a while; rerun this script with fresh keys if calls fail." -ForegroundColor Yellow
 Start-Sleep -Seconds 8
 Start-Process "http://localhost:5173"
