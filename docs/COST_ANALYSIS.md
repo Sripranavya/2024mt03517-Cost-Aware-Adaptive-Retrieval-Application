@@ -79,3 +79,5 @@ some categories is a valid finding if explained.
 | Hop, budget, timeout, duplicate, low-value safeguards | orchestrator + config; `tests/integration/test_safeguards.py` |
 | Actual token / API / infra cost | Converse usage, `CostTracker`, section above |
 | Fixed reproducible splits, same setup | `backend/app/core/benchmark.py`, `tests/unit/test_benchmark.py` |
+
+Final test-split and stopping-study numbers, with their caveats, are in `docs/RESULTS.md`.

@@ -58,10 +58,25 @@ def test_passages_dedupe_shared_titles() -> None:
 
 
 def test_categorize_and_eval_items() -> None:
-    assert categorize(_row(1, "easy", "bridge")) == ["easy", "multi_hop"]
-    assert categorize(_row(2, "hard", "comparison")) == ["complex"]
+    long_q = " ".join(["word"] * 22) + "?"
+    assert categorize(_row(1, "hard", "comparison")) == ["easy"]
+    assert categorize(_row(2, "hard", "bridge")) == ["multi_hop"]
+    assert categorize({**_row(3, "hard", "bridge"), "question": long_q}) == [
+        "complex",
+        "multi_hop",
+    ]
     assert set(CATEGORIES) >= {"easy", "complex", "multi_hop", "conflicting"}
     assert to_eval_items([_row(3)]) == [{"query": "Question 3?", "reference": "Answer 3"}]
+
+
+def test_paired_bootstrap_ci_brackets_a_known_shift() -> None:
+    from app.core.benchmark import paired_bootstrap_ci
+
+    base = [0.1 * (i % 5) for i in range(60)]
+    mean, lo, hi = paired_bootstrap_ci([x + 0.2 for x in base], base)
+    assert abs(mean - 0.2) < 1e-9 and lo - 1e-9 <= 0.2 <= hi + 1e-9
+    mean0, lo0, hi0 = paired_bootstrap_ci(base, base)
+    assert (mean0, lo0, hi0) == (0.0, 0.0, 0.0)
 
 
 def test_from_hf_row_matches_original_layout() -> None:
@@ -74,7 +89,7 @@ def test_from_hf_row_matches_original_layout() -> None:
     assert row["context"] == [["T1", ["a.", "b."]], ["T2", ["c."]]]
     assert [d.title for d in passages([row])] == ["T1", "T2"]
     assert {d.source for d in passages([row])} == {"local_corpus"}
-    assert categorize(row) == ["complex", "multi_hop"]
+    assert categorize(row) == ["multi_hop"]
 
 
 def test_conflicting_documents_contradict_the_reference() -> None:

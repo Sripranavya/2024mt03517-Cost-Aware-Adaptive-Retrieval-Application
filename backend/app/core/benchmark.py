@@ -99,16 +99,41 @@ def to_eval_items(rows: Iterable[dict]) -> list[dict[str, str]]:
     return [{"query": r["question"], "reference": str(r["answer"])} for r in rows]
 
 
+COMPLEX_MIN_WORDS = 20
+
+
 def categorize(row: dict) -> list[str]:
-    """Stopping-study categories a HotpotQA row belongs to (can overlap)."""
+    """Stopping-study categories for a HotpotQA row (a row can be in several).
+
+    HotpotQA dev only has ``level == "hard"``, so difficulty comes from structure:
+    ``easy`` = comparison questions (both entities are named in the question),
+    ``multi_hop`` = bridge questions (the second entity must be discovered), and
+    ``complex`` = bridge questions with long (>= 20 words) multi-clause wording.
+    """
     cats: list[str] = []
-    if row.get("level") == "easy":
+    is_bridge = row.get("type") == "bridge"
+    if row.get("type") == "comparison":
         cats.append("easy")
-    if row.get("level") == "hard":
+    if is_bridge and len(str(row.get("question", "")).split()) >= COMPLEX_MIN_WORDS:
         cats.append("complex")
-    if row.get("type") == "bridge":
+    if is_bridge:
         cats.append("multi_hop")
     return cats
+
+
+def paired_bootstrap_ci(
+    a: list[float], b: list[float], *, n_boot: int = 2000, seed: int = 13
+) -> tuple[float, float, float]:
+    """Mean paired difference ``a - b`` with a 95% bootstrap confidence interval."""
+    import random
+
+    if len(a) != len(b) or not a:
+        raise ValueError("paired samples must be non-empty and equal length")
+    diffs = [x - y for x, y in zip(a, b, strict=True)]
+    rng = random.Random(seed)
+    n = len(diffs)
+    means = sorted(sum(rng.choices(diffs, k=n)) / n for _ in range(n_boot))
+    return sum(diffs) / n, means[int(0.025 * n_boot)], means[int(0.975 * n_boot) - 1]
 
 
 def conflicting_documents(rows: list[dict]) -> tuple[list[Document], list[dict]]:

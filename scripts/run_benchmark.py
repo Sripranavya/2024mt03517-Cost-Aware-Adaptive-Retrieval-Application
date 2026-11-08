@@ -98,9 +98,16 @@ def index(engine: Engine, docs, batch: int = 32) -> None:
     print(f"indexed {len(docs)} passages (store count={engine.vector_store.count()})")
 
 
+PER_QUERY: list[dict] = []
+
+
 def evaluate(engine, split, category, items, strategies) -> list[dict]:
     rows = []
     for m in engine.evaluate_batch(items, strategies=strategies):
+        PER_QUERY.extend(
+            {"split": split, "category": category, "strategy": m.strategy, **r}
+            for r in m.per_item
+        )
         rows.append(
             {
                 "split": split, "category": category, "strategy": m.strategy,
@@ -169,9 +176,18 @@ def main() -> None:
         w = csv.DictWriter(fh, fieldnames=FIELDS)
         w.writeheader()
         w.writerows(results)
+    pq_name = name.replace(".csv", "_per_query.csv")
+    with (out / pq_name).open("w", newline="", encoding="utf-8") as fh:
+        pq = csv.DictWriter(
+            fh,
+            fieldnames=["split", "category", "strategy", "query", "f1", "em",
+                        "hops", "cost_usd", "latency_ms"],
+        )  # fmt: skip
+        pq.writeheader()
+        pq.writerows(PER_QUERY)
     for r in results:
         print(r)
-    print(f"wrote {out / name} and {out / 'splits.json'}")
+    print(f"wrote {out / name}, {out / pq_name} and {out / 'splits.json'}")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ Everything runs in local-mock mode by default (no AWS, no network).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 
 from app.aws.factory import (
@@ -78,6 +78,7 @@ class StrategyMetrics:
     avg_hops: float
     efficiency: float  # accuracy per US-cent of cost
     success_rate: float  # fraction of answers with F1 >= threshold
+    per_item: list[dict] = field(default_factory=list)  # one row per query
 
 
 class Engine:
@@ -224,6 +225,7 @@ class Engine:
             costs: list[float] = []
             hops: list[float] = []
             successes: list[float] = []
+            per_item: list[dict] = []
             for item in items:
                 result = self.run_query(item["query"], strategy)
                 reference = item["reference"]
@@ -238,6 +240,12 @@ class Engine:
                 toks.append(float(result.cost.total_tokens) if result.cost else 0.0)
                 costs.append(result.cost.total_usd_cost if result.cost else 0.0)
                 hops.append(float(result.hops))
+                per_item.append(
+                    {
+                        "query": item["query"], "f1": f1, "em": ems[-1],
+                        "hops": result.hops, "cost_usd": costs[-1], "latency_ms": lats[-1],
+                    }
+                )  # fmt: skip
             n = max(1, len(items))
             accuracy = sum(accs) / n
             avg_cost = sum(costs) / n
@@ -259,6 +267,7 @@ class Engine:
                     avg_hops=sum(hops) / n,
                     efficiency=efficiency,
                     success_rate=sum(successes) / n,
+                    per_item=per_item,
                 )
             )
         return out
