@@ -2,8 +2,9 @@
 
 Reads ``results/*_per_query.csv`` (written by run_benchmark.py) and prints, per
 category and baseline, the mean paired difference (controller - baseline) with a
-95% bootstrap confidence interval for F1, hops and latency. An interval that
-contains 0 means the difference is not distinguishable from noise at this n.
+95% bootstrap confidence interval for F1, cost (USD per query), hops and latency. An
+interval that contains 0 means the difference is not distinguishable from noise at
+this n. For cost and hops a "lower" verdict means the controller is cheaper/shorter.
 
 Usage::
 
@@ -22,9 +23,9 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1] / "backend"
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from app.core.benchmark import paired_bootstrap_ci  # noqa: E402
+from app.core.benchmark import paired_bootstrap_ci
 
-METRICS = ("f1", "hops", "latency_ms")
+METRICS = ("f1", "cost_usd", "hops", "latency_ms")
 
 
 def main() -> None:
@@ -51,7 +52,8 @@ def main() -> None:
                 b = [float(r[metric]) for r in rows]
                 mean, lo, hi = paired_bootstrap_ci(a, b)
                 verdict = "n.s." if lo <= 0 <= hi else ("lower" if hi < 0 else "higher")
-                parts.append(f"{metric} {mean:+.3f} [{lo:+.3f},{hi:+.3f}] {verdict}")
+                fmt = "+.5f" if metric == "cost_usd" else "+.3f"
+                parts.append(f"{metric} {mean:{fmt}} [{lo:{fmt}},{hi:{fmt}}] {verdict}")
             head = f"{split}/{category:11} {args.controller} vs {name:9} n={len(ctl):3}"
             print(head + " | " + " | ".join(parts))
 
