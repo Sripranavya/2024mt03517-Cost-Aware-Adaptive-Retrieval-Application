@@ -178,3 +178,22 @@ def test_msmarco_conversion_and_category() -> None:
     assert conv["_id"] == "msmarco-7" and len(conv["context"]) == 2
     assert categorize(conv) == ["ms_numeric"]
     assert from_msmarco_row({**row, "answers": ["No Answer Present."]}) is None
+
+def test_demo_login_enables_local_auth_in_cloud_mode_without_cognito_ids() -> None:
+    from app.config import Settings
+
+    base = {
+        "USE_LOCAL_MOCKS": False,
+        "BEDROCK_MODEL_ID": "m",
+        "BEDROCK_EMBED_MODEL_ID": "e",
+        "OPENSEARCH_ENDPOINT": "https://x",
+        "DYNAMODB_TABLE_NAME": "t",
+        "S3_BUCKET_NAME": "b",
+    }
+    cloud = Settings(**base)
+    assert cloud.uses_local_auth is False
+    with pytest.raises(RuntimeError, match="COGNITO"):
+        cloud.validate_cloud_requirements()
+    demo = Settings(**base, DEMO_LOGIN=True)
+    assert demo.uses_local_auth is True
+    demo.validate_cloud_requirements()

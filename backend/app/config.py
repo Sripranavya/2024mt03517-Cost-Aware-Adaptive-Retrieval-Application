@@ -126,6 +126,8 @@ class Settings(BaseSettings):
         default=_DEMO_LOGIN_FALLBACK, alias="LOCAL_DEMO_PASSWORD"
     )
     jwt_expiry_seconds: int = Field(default=3600, ge=60, le=86400, alias="JWT_EXPIRY_SECONDS")
+    # Demo only: local password sign-in while the data plane runs on live AWS.
+    demo_login: bool = Field(default=False, alias="DEMO_LOGIN")
 
     # --- Rate limiting ---
     rate_limit_per_minute: int = Field(default=30, ge=1, alias="RATE_LIMIT_PER_MINUTE")
@@ -159,6 +161,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
+    @property
+    def uses_local_auth(self) -> bool:
+        """Local HS256 sign-in is used in mock mode or when DEMO_LOGIN is set."""
+        return self.use_local_mocks or self.demo_login
 
     def resolved_llm_provider(self) -> str:
         """Concrete LLM provider after resolving the "auto" default."""
@@ -197,9 +204,10 @@ class Settings(BaseSettings):
             "OPENSEARCH_ENDPOINT": self.opensearch_endpoint,
             "DYNAMODB_TABLE_NAME": self.dynamodb_table_name,
             "S3_BUCKET_NAME": self.s3_bucket_name,
-            "COGNITO_USER_POOL_ID": self.cognito_user_pool_id,
-            "COGNITO_APP_CLIENT_ID": self.cognito_app_client_id,
         }
+        if not self.demo_login:
+            required["COGNITO_USER_POOL_ID"] = self.cognito_user_pool_id
+            required["COGNITO_APP_CLIENT_ID"] = self.cognito_app_client_id
         missing = [name for name, value in required.items() if not value]
         if missing:
             raise RuntimeError(
@@ -223,7 +231,7 @@ class Settings(BaseSettings):
         if self.app_env.lower() in local_envs:
             return
         problems: list[str] = []
-        if self.use_local_mocks:
+        if self.uses_local_auth:
             if self.local_jwt_secret == _DEV_JWT_FALLBACK:
                 problems.append("LOCAL_JWT_SECRET is still the built-in default")
             if self.local_demo_password == _DEMO_LOGIN_FALLBACK:

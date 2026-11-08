@@ -150,7 +150,7 @@ class CognitoAuthenticator(Authenticator):
 @lru_cache
 def get_authenticator() -> Authenticator:
     settings = get_settings()
-    if settings.use_local_mocks:
+    if settings.uses_local_auth:
         return LocalAuthenticator(settings)
     return CognitoAuthenticator(settings)
 

@@ -15,7 +15,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def login(body: LoginRequest) -> TokenResponse:
     """Issue a JWT. Local mode only — cloud mode uses the Cognito Hosted UI."""
     settings = get_settings()
-    if not settings.use_local_mocks:
+    if not settings.uses_local_auth:
         raise AuthError(
             "Direct login is disabled in cloud mode; authenticate via Cognito"
         )
