@@ -22,10 +22,22 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
-STRATEGIES = ("pomdp", "fixed", "self_rag", "adaptive")
+STRATEGIES = (
+    "pomdp", "pomdp_vi", "pomdp_quality", "fixed", "fixed_1", "fixed_2", "self_rag",
+    "adaptive", "crag", "flare", "rag_fusion", "step_back", "hyde",
+)
+# Labelled live questions (gold answers) used for the dashboard-style batch check.
+HEADLINE = ("pomdp", "fixed", "self_rag", "adaptive")
+LABELLED = [
+    ("Which documentary film came out first The Last Lions or Prophet's Prey ?", "The Last Lions"),
+    ("What is the hometown of Duck Down Music artist and complex rapper Pharaohe Monch?",
+     "Queens, New York"),
+    ("Are Hot Rod and The Memory of Our People both magazines?", "yes"),
+]
 
 # (question, in_index, lowercase substring a correct answer must contain or None)
 QUESTIONS = [
@@ -125,11 +137,35 @@ def main() -> int:
             if in_index:
                 check(row["docs"] > 0, f"{strategy}: used retrieved documents")
                 if expect:
-                    check(expect in r["answer"].lower(),
-                          f"{strategy}: answer contains '{expect}'")
+                    correct = expect in r["answer"].lower()
+                    if strategy in HEADLINE:
+                        check(correct, f"{strategy}: answer contains '{expect}'")
+                    else:
+                        print(f"  {'ok' if correct else 'WARN'}    {strategy}: gold "
+                              f"'{expect}' {'found' if correct else 'not found'} (measurement)")
             else:
                 check("insufficient" in r["answer"].lower() or row["belief"] < 0.5,
                       f"{strategy}: out-of-index question ends unsupported / low belief")
+
+    print("\n== dashboard-style checks (every strategy, labelled live questions)")
+    for strategy in args.strategies:
+        try:
+            ev = call(api, "/evaluate/batch",
+                      {"items": [{"query": q, "reference": r} for q, r in LABELLED],
+                       "strategies": [strategy]}, token)
+            m = ev["metrics"][0]
+            ok = m["strategy"] == strategy and m["avg_tokens"] > 0 and m["avg_cost_usd"] > 0
+            print(f"  {strategy:14} acc={m['accuracy']:.2f} f1={m['f1']:.2f} "
+                  f"hops={m['avg_hops']:.1f} usd={m['avg_cost_usd']:.5f}")
+        except RuntimeError as exc:
+            ok = False
+            print(f"  {strategy:14} ERROR {exc}")
+        check(ok, f"{strategy}: /evaluate/batch returns real metrics on live questions")
+    query_part = "query=" + urllib.parse.quote(LABELLED[0][0])
+    cmp_path = "/compare?" + "&".join([query_part] + [f"strategies={s}" for s in args.strategies])
+    cmp = call(api, cmp_path, token=token)
+    check(set(cmp["results"]) == set(args.strategies),
+          f"/compare returns all {len(args.strategies)} strategies side by side")
 
     print("\n== summary by strategy (in-index questions only)")
     print(f"{'strategy':10}{'n':>3}{'hops':>7}{'belief':>8}{'usd/q':>10}{'tokens':>8}"

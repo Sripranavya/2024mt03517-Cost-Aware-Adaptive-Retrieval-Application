@@ -9,7 +9,11 @@ const PASSWORD = process.env.E2E_PASSWORD;
 const CLOUD = process.env.E2E_EXPECT_CLOUD !== "0";
 const IN_INDEX = 'Eddie Jemison had a role in the television series "IZombie", which premiered on what date?';
 const OUT_OF_INDEX = "How does photosynthesis convert light into chemical energy?";
-const STRATEGIES = ["POMDP", "Fixed RAG", "Self-RAG", "Adaptive-RAG"];
+const STRATEGIES = [
+  "POMDP", "POMDP · VI", "POMDP · Quality", "Fixed RAG", "Fixed-1", "Fixed-2", "Self-RAG",
+  "Adaptive-RAG", "CRAG", "FLARE", "RAG-Fusion", "Step-Back", "HyDE",
+];
+const DASH_QUERIES = process.env.E2E_DASH_QUERIES ?? "3";
 // When set, a PNG of each step is written here (evidence for the report).
 const SHOTS = process.env.E2E_SHOTS_DIR;
 const slug = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
@@ -53,7 +57,7 @@ async function ask(page: Page, strategy: string, question: string): Promise<Answ
 }
 
 test("signs in, runs every strategy on live AWS, and shows a real trace", async ({ page }) => {
-  test.setTimeout(600_000);
+  test.setTimeout(2_400_000);
   await page.goto("/login");
   await page.getByLabel("Username").fill("demo");
   await page.getByLabel("Password").fill(PASSWORD ?? "");
@@ -101,11 +105,27 @@ test("signs in, runs every strategy on live AWS, and shows a real trace", async 
     ).toBe(true);
   }
 
-  // Dashboard page loads for the signed-in user.
+  // Dashboard: run every strategy on the labelled question set and wait for all results.
   await page.getByRole("link", { name: /Comparison/ }).first().click();
   await expect(page).toHaveURL(/\/compare/);
   await expect(page.getByRole("heading", { name: "Comparison Dashboard" })).toBeVisible();
+  await page.getByLabel("Number of queries").fill(DASH_QUERIES);
+  await expect(page.getByTestId("benchmark-summary")).toContainText(
+    `${STRATEGIES.length} strategies`,
+  );
+  if (CLOUD) await expect(page.getByTestId("benchmark-summary")).toContainText("live AWS");
+  await page.getByRole("button", { name: /Run benchmark/ }).click();
+  await expect(page.getByRole("status")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("status")).toHaveCount(0, { timeout: 1_800_000 });
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Most efficient strategy")).toBeVisible();
+  const tableRows = await page.getByRole("row").count();
+  expect(tableRows).toBeGreaterThanOrEqual(STRATEGIES.length + 1);
+  console.log(`\nDashboard: ${STRATEGIES.length} strategies x ${DASH_QUERIES} queries, ${tableRows} table rows`);
   if (SHOTS) {
-    await page.screenshot({ path: `${SHOTS}/${String(shotNo++).padStart(2, "0")}-comparison-dashboard.png` });
+    await page.screenshot({
+      path: `${SHOTS}/${String(shotNo++).padStart(2, "0")}-comparison-dashboard-results.png`,
+      fullPage: true,
+    });
   }
 });
