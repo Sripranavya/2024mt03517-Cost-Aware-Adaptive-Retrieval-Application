@@ -174,6 +174,29 @@ identical settings scored 0.542 and 0.601); Adaptive-RAG's validation F1 fell fr
 No test-split confirmation was run. The v2 results above remain the reported configuration; the
 safeguard stays off by default.
 
+## Per-query adaptivity audit (saved per-query results, no new AWS calls)
+`scripts/adaptivity_audit.py` reads the per-query CSVs and reports the distribution of hop
+counts per strategy. The question: does the POMDP vary its depth from query to query?
+
+| Setting (test) | Hop distribution | Mean | SD | corr(hops, F1) |
+|---|---|---|---|---|
+| HotpotQA, weight 40 (n=80) | 2 hops: 77, 4 hops: 3 | 2.08 | 0.38 | +0.12 |
+| HotpotQA, weight 60 (n=80) | 1 hop: 67, 2 hops: 13 | 1.16 | 0.37 | -0.07 |
+| HotpotQA, weight 20, v1 (n=80) | 2 to 6 hops, spread out | 3.73 | 1.44 | -0.30 |
+| MS MARCO, weight 60 (n=60) | 1 hop: 59, 2 hops: 1 | 1.02 | 0.13 | +0.14 |
+| Self-RAG, HotpotQA (n=80) | 2: 32, 4: 13, 6: 35 | 4.08 | 1.83 | -0.33 |
+| Adaptive-RAG, HotpotQA (n=80) | 1: 26, 3: 37, 5: 17 | 2.77 | 1.45 | +0.11 |
+
+**Finding:** at the tuned weights the POMDP behaves almost like a fixed-depth policy. At weight
+40 it uses exactly 2 hops on 96% of HotpotQA queries, and at weight 60 about 1 hop on 84%.
+At weight 40 its mean depth is similar on HotpotQA (2.09) and MS MARCO (2.20), so depth is set
+mainly by the cost weight, not by the individual query. Depth does vary at weight 20 (2 to 6
+hops), but there it correlates negatively with F1 (-0.30): more hops go to questions it gets
+wrong, and that setting was also more expensive than Fixed. The claim this supports is that the
+cost weight lets the controller settle on a cost-effective depth per dataset; per-query depth
+adaptation that improves quality is not demonstrated. The paper-style claim of "adaptive depth"
+should be stated as: adaptive in design, near-fixed depth in the tuned configuration.
+
 ## What the evidence supports
 - **No measurable accuracy loss** in any category: no F1 interval excludes 0.
 - **Fewer retrieval hops everywhere:** POMDP stops after one retrieval, so it uses 2 to
