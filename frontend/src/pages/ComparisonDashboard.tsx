@@ -107,11 +107,22 @@ export function ComparisonDashboard() {
     for (const strategy of order) {
       if (cancelled.current) break;
       setRunning(strategy);
-      try {
-        const res = await evaluateBatch(items, [strategy]);
-        setMetrics((cur) => [...cur, ...res.metrics]);
-      } catch (err) {
-        setFailures((cur) => ({ ...cur, [strategy]: (err as Error).message }));
+      // A transient backend error (for example Bedrock throttling) gets one retry.
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const res = await evaluateBatch(items, [strategy]);
+          setMetrics((cur) => [...cur, ...res.metrics]);
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err as Error;
+          if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 4000));
+        }
+      }
+      if (lastError) {
+        const failure = lastError;
+        setFailures((cur) => ({ ...cur, [strategy]: failure.message }));
       }
       setDone((n) => n + 1);
     }

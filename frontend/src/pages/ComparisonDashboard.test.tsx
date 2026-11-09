@@ -74,6 +74,25 @@ describe("ComparisonDashboard", () => {
     expect(firstItems[0].reference).toBe("The Last Lions");
   });
 
+  it("retries a strategy once after a transient error and shows no failure", async () => {
+    healthFn.mockResolvedValue({ status: "ok", mode: "cloud", strategies: [], corpus_size: 800 });
+    let hydeCalls = 0;
+    evaluateBatch.mockImplementation((_items: unknown, strategies: string[]) => {
+      if (strategies[0] === "hyde") {
+        hydeCalls += 1;
+        if (hydeCalls === 1) return Promise.reject(new Error("Failed to fetch"));
+      }
+      return Promise.resolve(metricsFor(strategies[0]));
+    });
+    renderDashboard();
+    await waitFor(() => expect(healthFn).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Run benchmark/ }));
+
+    await waitFor(() => expect(hydeCalls).toBe(2), { timeout: 15_000 });
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull(), { timeout: 15_000 });
+    expect(screen.queryByRole("alert")).toBeNull();
+  }, 30_000);
+
   it("reports a failing strategy without losing the others", async () => {
     healthFn.mockResolvedValue({ status: "ok", mode: "cloud", strategies: [], corpus_size: 800 });
     evaluateBatch.mockImplementation((_items: unknown, strategies: string[]) =>
@@ -85,8 +104,12 @@ describe("ComparisonDashboard", () => {
     await waitFor(() => expect(healthFn).toHaveBeenCalled());
     fireEvent.click(screen.getByRole("button", { name: /Run benchmark/ }));
 
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("boom"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("boom"), {
+      timeout: 15_000,
+    });
     expect(screen.getByRole("alert").textContent).toContain("CRAG");
-    await waitFor(() => expect(evaluateBatch).toHaveBeenCalledTimes(ALL_STRATEGY_KEYS.length));
-  });
+    await waitFor(() => expect(evaluateBatch).toHaveBeenCalledTimes(ALL_STRATEGY_KEYS.length + 1), {
+      timeout: 15_000,
+    });
+  }, 30_000);
 });

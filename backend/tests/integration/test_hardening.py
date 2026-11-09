@@ -54,3 +54,27 @@ def test_docs_csp_is_not_applied_outside_local_mode():
     app.add_middleware(SecurityHeadersMiddleware, allow_docs_ui=False)
     csp = TestClient(app).get("/docs").headers["Content-Security-Policy"]
     assert csp == "default-src 'none'; frame-ancestors 'none'"
+
+
+def test_unhandled_500_carries_cors_header_for_allowed_origin() -> None:
+    from fastapi import APIRouter
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+
+    app = create_app()
+    router = APIRouter()
+
+    @router.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("secret internal detail")
+
+    app.include_router(router)
+    client = TestClient(app, raise_server_exceptions=False)
+    ok = client.get("/boom", headers={"Origin": "http://localhost:5173"})
+    assert ok.status_code == 500
+    assert ok.json()["error_code"] == "internal_error"
+    assert "secret internal detail" not in ok.text
+    assert ok.headers["access-control-allow-origin"] == "http://localhost:5173"
+    other = client.get("/boom", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in other.headers

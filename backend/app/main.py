@@ -131,11 +131,19 @@ def create_app() -> FastAPI:
     async def _unhandled_handler(request: Request, exc: Exception):
         # Log server-side; never leak internals to the client.
         logger.exception("unhandled_error", extra={"path": request.url.path})
-        return _error(
+        response = _error(
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             "internal_error",
             "An internal error occurred.",
         )
+        # Unhandled errors are produced outside CORSMiddleware, so without this header the
+        # browser reports a bare "Failed to fetch" instead of the error body.
+        origin = request.headers.get("origin")
+        if origin and origin in settings.cors_origins_list:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+        return response
 
     api_prefix = "/api/v1"
     app.include_router(health.router, prefix=api_prefix)
