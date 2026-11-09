@@ -11,13 +11,20 @@
   windows, never written to a file or printed, and the clipboard is cleared afterwards.
   Sign-in uses DEMO_LOGIN (local password); everything else runs on AWS.
 
-  Usage:  .\scripts\start_live_ui.ps1 [-Index hp-test|ms-test]
+  Usage:  .\scripts\start_live_ui.ps1 [-Index hp-test|ms-test] [-Password <fixed demo password>]
 #>
-param([string]$Index = "hp-test")
+param([string]$Index = "hp-test", [string]$Password = "")
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $py = Join-Path $root ".venv\Scripts\python.exe"
+
+# Old servers keep their (expired) keys and block the ports, so refuse to start over them.
+foreach ($port in 8000, 5173) {
+    if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
+        throw "Port $port is already in use. Close the old backend and frontend windows first."
+    }
+}
 
 $clip = (Get-Clipboard -Raw)
 $found = @{}
@@ -29,6 +36,20 @@ foreach ($k in "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"
         throw "Clipboard has no $k. In CloudShell run: aws configure export-credentials --format powershell, copy the 3 lines, then rerun."
     }
     Set-Item -Path "Env:$k" -Value $found[$k]
+}
+
+# The export also prints when these keys expire; show the time left so a short-lived set is
+# noticed before the demo instead of halfway through it.
+$exp = [regex]::Match($clip, '(?im)AWS_CREDENTIAL_EXPIRATION\s*=\s*["'']?([^"''\r\n]+)')
+if ($exp.Success) {
+    $left = [datetimeoffset]::Parse($exp.Groups[1].Value.Trim()) - [datetimeoffset]::UtcNow
+    $mins = [math]::Floor($left.TotalMinutes)
+    if ($mins -le 0) { throw "These keys have already expired. Run the export again in CloudShell." }
+    $color = if ($mins -lt 20) { "Red" } else { "Green" }
+    Write-Host "Keys valid for about $mins more minutes." -ForegroundColor $color
+    if ($mins -lt 20) {
+        Write-Host "That is short. Sign out and back in to the AWS console, reopen CloudShell, and export again for a fresh set." -ForegroundColor Yellow
+    }
 }
 
 $env:AWS_REGION = "ap-southeast-2"
@@ -53,7 +74,7 @@ $env:ANSWER_DOCS = "8"; $env:REWARD_COST_WEIGHT = "40"; $env:RETRIEVAL_COST_USD 
 $env:MAX_BUDGET_USD = "5"
 $env:PRICE_PER_1K_INPUT_TOKENS = "0.001"; $env:PRICE_PER_1K_OUTPUT_TOKENS = "0.005"
 
-$demoPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 14 | ForEach-Object { [char]$_ })
+$demoPassword = if ($Password) { $Password } else { -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 14 | ForEach-Object { [char]$_ }) }
 $env:LOCAL_DEMO_PASSWORD = $demoPassword
 $env:LOCAL_JWT_SECRET = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 40 | ForEach-Object { [char]$_ })
 

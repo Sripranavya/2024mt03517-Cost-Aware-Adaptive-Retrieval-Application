@@ -4,6 +4,22 @@ Keep the OpenSearch domain `agentic-rag-vectors` running until the viva is over.
 about $1 per day. Do NOT run terraform destroy or `aws opensearch delete-domain` before then.
 Afterwards: `aws opensearch delete-domain --domain-name agentic-rag-vectors --region ap-southeast-2`.
 
+## About the credentials and the sign-in (read this once)
+- **Two different logins.** The AWS keys are only for the backend to call Bedrock and
+  OpenSearch. The username and password on the app's sign-in page are the app's own demo login
+  (`DEMO_LOGIN`): any username, and a password that `start_live_ui.ps1` generates and prints
+  each time. It is not MFA and not your AWS password. Use `-Password <something>` to fix it.
+- **How long the keys last.** CloudShell hands out the keys of the current console session, which
+  expire one hour after that session began, not one hour after you export them. If you export
+  late in the hour you get only the remainder (that is how a set with about 10 minutes left
+  happens). The launcher now prints the time left. If it shows under 20 minutes, sign out of the
+  AWS console, sign back in, reopen CloudShell and export again; that gives a fresh set of up to
+  one hour. Do this before you present, then start the app straight away.
+- **Longer sessions need a change in AWS, and may not be allowed on this account:** the
+  permission-set session duration in IAM Identity Center (up to 12 hours), or a least-privilege
+  IAM user access key. Both are outside the repo; the second leaves a long-lived key on the
+  laptop, so delete it after the viva.
+
 ## 10 minutes before the viva (about 3 minutes of work)
 Temporary AWS keys last only about 10 to 40 minutes, so start them right before you present.
 1. CloudShell (Sydney): `aws configure export-credentials --format powershell`, copy the
