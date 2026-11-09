@@ -93,6 +93,26 @@ describe("ComparisonDashboard", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   }, 30_000);
 
+  it("reports identical results as a tie and warns about a small sample", async () => {
+    healthFn.mockResolvedValue({ status: "ok", mode: "cloud", strategies: [], corpus_size: 800 });
+    evaluateBatch.mockImplementation((_items: unknown, strategies: string[]) =>
+      Promise.resolve(metricsFor(strategies[0])),
+    );
+    renderDashboard();
+    await waitFor(() => expect(healthFn).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole("button", { name: /Run benchmark/ }));
+
+    await waitFor(() => expect(screen.getByTestId("small-sample-note")).toBeTruthy(), {
+      timeout: 15_000,
+    });
+    expect(screen.getByTestId("small-sample-note").textContent).toContain("smoke test");
+    // Every strategy has the same accuracy, so no single strategy may be credited with it.
+    await waitFor(() =>
+      expect(screen.getAllByText(`${ALL_STRATEGY_KEYS.length}-way tie (all strategies)`).length)
+        .toBeGreaterThan(0),
+    { timeout: 15_000 });
+  }, 30_000);
+
   it("reports a failing strategy without losing the others", async () => {
     healthFn.mockResolvedValue({ status: "ok", mode: "cloud", strategies: [], corpus_size: 800 });
     evaluateBatch.mockImplementation((_items: unknown, strategies: string[]) =>

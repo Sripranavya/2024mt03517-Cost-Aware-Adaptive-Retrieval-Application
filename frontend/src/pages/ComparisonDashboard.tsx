@@ -38,6 +38,26 @@ function argbest(
   return best;
 }
 
+// Every strategy that shares the best value, so a tie is reported as a tie instead of
+// being credited to whichever strategy happens to be listed first.
+function leaders(
+  metrics: StrategyMetrics[],
+  key: keyof StrategyMetrics,
+  higher: boolean,
+): StrategyMetrics[] {
+  const best = argbest(metrics, key, higher)[key] as number;
+  const tol = 1e-9 + Math.abs(best) * 1e-6;
+  return metrics.filter((m) => Math.abs((m[key] as number) - best) <= tol);
+}
+
+function leaderLabel(tied: StrategyMetrics[], total: number): string {
+  if (tied.length === 1) return strategyMeta(tied[0].strategy).label;
+  if (tied.length === total) return `${total}-way tie (all strategies)`;
+  const names = tied.slice(0, 2).map((m) => strategyMeta(m.strategy).label);
+  const rest = tied.length - names.length;
+  return `tie: ${names.join(", ")}${rest > 0 ? ` +${rest}` : ""}`;
+}
+
 function downloadCsv(metrics: StrategyMetrics[]) {
   const cols: (keyof StrategyMetrics)[] = [
     "strategy",
@@ -137,10 +157,15 @@ export function ComparisonDashboard() {
   const hasData = metrics.length > 0;
   const failed = Object.entries(failures);
 
-  const winner = hasData ? argbest(metrics, "efficiency", true) : null;
-  const bestAcc = hasData ? argbest(metrics, "accuracy", true) : null;
-  const cheapest = hasData ? argbest(metrics, "avg_cost_usd", false) : null;
-  const fewestHops = hasData ? argbest(metrics, "avg_hops", false) : null;
+  const winnerTied = hasData ? leaders(metrics, "efficiency", true) : [];
+  const accTied = hasData ? leaders(metrics, "accuracy", true) : [];
+  const costTied = hasData ? leaders(metrics, "avg_cost_usd", false) : [];
+  const hopsTied = hasData ? leaders(metrics, "avg_hops", false) : [];
+  const winner = winnerTied[0] ?? null;
+  const bestAcc = accTied[0] ?? null;
+  const cheapest = costTied[0] ?? null;
+  const fewestHops = hopsTied[0] ?? null;
+  const total = metrics.length;
 
   return (
     <div className="flex-1 bg-slate-950 text-slate-200">
@@ -271,6 +296,17 @@ export function ComparisonDashboard() {
         )}
       </form>
 
+      {hasData && queryCount < 10 && (
+        <p
+          className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+          data-testid="small-sample-note"
+        >
+          Only {queryCount} question{queryCount === 1 ? "" : "s"} per strategy: this is a smoke
+          test. Differences in accuracy are not meaningful at this size, and ties are shown as
+          ties. The reported conclusions come from the n=80 and n=200 benchmark tables.
+        </p>
+      )}
+
       {failed.length > 0 && (
         <div className="mb-4 space-y-2" role="alert">
           {failed.map(([name, message]) => (
@@ -309,7 +345,7 @@ export function ComparisonDashboard() {
                     🏆 Most efficient strategy
                   </div>
                   <div className="mt-1 text-2xl font-extrabold">
-                    {strategyMeta(winner.strategy).label}
+                    {leaderLabel(winnerTied, total)}
                   </div>
                   <div className="text-sm text-white/80">
                     {winner.efficiency.toFixed(2)} accuracy per cent · {winner.avg_hops.toFixed(1)} hops · $
@@ -327,7 +363,7 @@ export function ComparisonDashboard() {
               <StatCard
                 label="Best accuracy"
                 value={bestAcc.accuracy.toFixed(3)}
-                sub={strategyMeta(bestAcc.strategy).label}
+                sub={leaderLabel(accTied, total)}
                 icon="🎯"
                 accent="#6366f1"
               />
@@ -336,7 +372,7 @@ export function ComparisonDashboard() {
               <StatCard
                 label="Lowest cost"
                 value={`$${cheapest.avg_cost_usd.toFixed(5)}`}
-                sub={strategyMeta(cheapest.strategy).label}
+                sub={leaderLabel(costTied, total)}
                 icon="💰"
                 accent="#10b981"
               />
@@ -345,7 +381,7 @@ export function ComparisonDashboard() {
               <StatCard
                 label="Fewest hops"
                 value={fewestHops.avg_hops.toFixed(1)}
-                sub={strategyMeta(fewestHops.strategy).label}
+                sub={leaderLabel(hopsTied, total)}
                 icon="🔁"
                 accent="#0ea5e9"
               />
@@ -354,7 +390,7 @@ export function ComparisonDashboard() {
               <StatCard
                 label="Best efficiency"
                 value={winner.efficiency.toFixed(2)}
-                sub={strategyMeta(winner.strategy).label}
+                sub={leaderLabel(winnerTied, total)}
                 icon="⚡"
                 accent="#f59e0b"
                 highlight
