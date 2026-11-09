@@ -93,5 +93,37 @@ Write-Host "Index    : $Index (live OpenSearch)" -ForegroundColor Cyan
 Write-Host "Sign in  : username 'demo' (any name works)" -ForegroundColor Yellow
 Write-Host "Password : $demoPassword   (also copied to the clipboard)" -ForegroundColor Yellow
 Write-Host "Keys expire after a while; rerun this script with fresh keys if calls fail." -ForegroundColor Yellow
-Start-Sleep -Seconds 8
-Start-Process "http://localhost:5173"
+
+# Open the browser only once the servers really answer; a fixed sleep opened an empty tab
+# whenever a server was slow or failed to start.
+function Wait-Http([string]$Url, [int]$Seconds) {
+    $deadline = (Get-Date).AddSeconds($Seconds)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 3
+            return [int]$r.StatusCode
+        } catch {
+            if ($_.Exception.Response) { return [int]$_.Exception.Response.StatusCode }
+        }
+        Start-Sleep -Seconds 2
+    }
+    return 0
+}
+
+Write-Host ""
+Write-Host "Waiting for the servers..." -ForegroundColor Gray
+$feStatus = Wait-Http "http://localhost:5173" 60
+$beStatus = Wait-Http "http://localhost:8000/api/v1/health" 60
+if ($feStatus -eq 200) {
+    Write-Host "Frontend is up." -ForegroundColor Green
+} else {
+    Write-Host "Frontend did not start within 60 s. Check the frontend window for the error (a port may be busy or 'npm install' may be needed). Browser NOT opened." -ForegroundColor Red
+}
+if ($beStatus -eq 200) {
+    Write-Host "Backend is up and AWS answers." -ForegroundColor Green
+} elseif ($beStatus -eq 500) {
+    Write-Host "Backend is up but AWS rejected it (500): the keys are probably expired. Export fresh keys and rerun." -ForegroundColor Red
+} else {
+    Write-Host "Backend did not answer within 60 s. Check the backend window for the error." -ForegroundColor Red
+}
+if ($feStatus -eq 200) { Start-Process "http://localhost:5173" }
