@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+import logging
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.serializers import run_result_to_response
+from app.aws.factory import get_state_store
 from app.config import get_settings
 from app.core.engine import get_engine
 from app.schemas import (
@@ -20,11 +24,25 @@ from app.security.concurrency import user_slot
 from app.security.sanitize import sanitize_user_query
 
 router = APIRouter(tags=["query"])
+logger = logging.getLogger(__name__)
+
+
+def _persist_episode(request: Request, user: UserInfo, response: QueryResponse) -> None:
+    """Best-effort save of the episode trace (DynamoDB in cloud mode); never fails the request."""
+    try:
+        request_id = getattr(request.state, "request_id", None) or uuid.uuid4().hex
+        get_state_store().put(
+            request_id,
+            {"user": user.username, "episode": response.model_dump(mode="json")},
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("episode persistence failed", exc_info=True)
 
 
 @router.post("/query", response_model=QueryResponse)
 def run_query(
     body: QueryRequest,
+    request: Request,
     user: UserInfo = Depends(get_current_user),
 ) -> QueryResponse:
     """Run a single strategy over a query and return the full hop-by-hop trace."""
@@ -32,7 +50,10 @@ def run_query(
     with user_slot(user.username, settings.max_concurrent_per_user):
         engine = get_engine()
         result = engine.run_query(body.query, body.strategy)
-    return run_result_to_response(result)
+    response = run_result_to_response(result)
+    if settings.persist_episodes:
+        _persist_episode(request, user, response)
+    return response
 
 
 @router.get("/compare", response_model=CompareResponse)

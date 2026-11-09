@@ -123,5 +123,10 @@ def get_embedding_client() -> EmbeddingClient:
 
 
 @lru_cache
+def get_state_store() -> StateStore:
+    return build_state_store(get_settings())
+
+
+@lru_cache
 def get_llm_client() -> LLMClient:
     return build_llm_client(get_settings())

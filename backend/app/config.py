@@ -79,6 +79,7 @@ class Settings(BaseSettings):
     opensearch_index: str = Field(default="rag-documents", alias="OPENSEARCH_INDEX")
     dynamodb_table_name: str = Field(default="", alias="DYNAMODB_TABLE_NAME")
     s3_bucket_name: str = Field(default="", alias="S3_BUCKET_NAME")
+    persist_episodes: bool = Field(default=False, alias="PERSIST_EPISODES")
     sqs_queue_url: str = Field(default="", alias="SQS_QUEUE_URL")
     sns_topic_arn: str = Field(default="", alias="SNS_TOPIC_ARN")
 
