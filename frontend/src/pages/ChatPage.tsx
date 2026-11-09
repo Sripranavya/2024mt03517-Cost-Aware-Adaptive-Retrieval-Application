@@ -11,6 +11,7 @@ import { RewardChart } from "../components/RewardChart";
 import { DocumentsPanel } from "../components/DocumentsPanel";
 import { SecurityPanel } from "../components/SecurityPanel";
 import { StrategyBadge } from "../components/ui/Badge";
+import { LIVE_EVAL_SAMPLE } from "../data/liveEvalSample";
 
 const EXAMPLES = [
   "What is the capital of France?",
@@ -18,6 +19,13 @@ const EXAMPLES = [
   "What is a Transformer in machine learning?",
   "What does photosynthesis produce?",
 ];
+
+// Positions in LIVE_EVAL_SAMPLE of questions that are known to be answered correctly by every
+// strategy against the live index (their passages are among the 800 indexed documents).
+const LIVE_EXAMPLE_POSITIONS = [0, 4, 6, 10];
+const LIVE_EXAMPLES = LIVE_EVAL_SAMPLE.filter((_, i) => LIVE_EXAMPLE_POSITIONS.includes(i)).map(
+  (q) => q.query,
+);
 
 const STORAGE_KEY = "pomdp_chat_conversations_v1";
 
@@ -530,6 +538,10 @@ function ConversationRow({
 
 export function ChatPage() {
   const { user, logout } = useAuth();
+  // In cloud mode only questions whose passages are in the live index are suggested; the
+  // generic ones would come back as "Insufficient evidence" there.
+  const healthQuery = useQuery({ queryKey: ["health"], queryFn: health });
+  const examples = healthQuery.data?.mode === "cloud" ? LIVE_EXAMPLES : EXAMPLES;
 
   const [conversations, setConversations] = useState<Conversation[]>(() => {
     const loaded = loadConversations();
@@ -945,9 +957,11 @@ export function ChatPage() {
                   <p className="mt-1 text-slate-400">
                     A cost-aware belief-driven controller answers your question and shows its
                     reasoning. Pick a strategy below, then send a message.
+                    {healthQuery.data?.mode === "cloud" &&
+                      " The live index holds a fixed set of HotpotQA passages, so use the suggestions below."}
                   </p>
-                  <div className="mt-5 flex flex-wrap justify-center gap-2">
-                    {EXAMPLES.map((ex) => (
+                  <div className="mt-5 flex flex-wrap justify-center gap-2" data-testid="examples">
+                    {examples.map((ex) => (
                       <button
                         key={ex}
                         type="button"
