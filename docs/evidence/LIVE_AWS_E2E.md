@@ -79,6 +79,49 @@ Each shows the footer badge "Cloud - 800 docs" (live index).
 ![POMDP answer](./screenshots/01-pomdp.png)
 ![Reasoning trace](./screenshots/05-reasoning-trace.png)
 
+## Update 2026-11-09: all 13 strategies, `/compare` and the dashboard, live
+The first evidence above covered the four headline strategies. This run covers every
+strategy the app exposes: POMDP, POMDP-VI, POMDP-Quality, Fixed, Fixed-1, Fixed-2, Self-RAG,
+Adaptive-RAG, CRAG, FLARE, RAG-Fusion, Step-Back and HyDE (live OpenSearch `hp-test`,
+Bedrock Claude Haiku 4.5 and Titan v2).
+
+| Check | Result |
+|---|---|
+| API test: 6 questions x 13 strategies, plus `/evaluate/batch` per strategy on 3 labelled questions | **350 checks passed, 0 failed, 0 warnings.** Every strategy returned real Bedrock tokens and cost, a trace and retrieved documents, and found the gold answer on the questions that have one. |
+| `/compare` with all 13 strategies on one live question | OK in 54 s; all 13 answered "The Last Lions" (table below) |
+| UI test: all 13 strategies selected in the chat page, then the dashboard on all 13 | **Passed** (5.0 min): 13 answers with traces, then the dashboard returned 13 result rows |
+
+`/compare`, one live question ("Which documentary film came out first ..."), hops / belief / USD:
+POMDP 2 / 0.53 / 0.00260; POMDP-VI 6 / 0.45 / 0.00666; POMDP-Quality 4 / 0.93 / 0.00409;
+Fixed 3 / 0.51 / 0.00361; Fixed-1 1 / 0.35 / 0.00128; Fixed-2 2 / 0.53 / 0.00260; Self-RAG 2 / 0.71 /
+0.00193; Adaptive-RAG 1 / 0.35 / 0.00138; CRAG 4 / 0.93 / 0.00411; FLARE 2 / 0.71 / 0.00193;
+RAG-Fusion 6 / 0.51 / 0.00416; Step-Back 3 / 0.53 / 0.00278; HyDE 3 / 0.70 / 0.00184.
+
+Same question in the chat UI ("Eddie Jemison ... IZombie"), all 13 returned "March 17, 2015":
+hops POMDP 4, POMDP-VI 6, POMDP-Quality 6, Fixed 3, Fixed-1 1, Fixed-2 2, Self-RAG 6, Adaptive-RAG 1,
+CRAG 6, FLARE 6, RAG-Fusion 6, Step-Back 3, HyDE 4; cost 0.00097 (Fixed-1) to 0.00513 (POMDP-VI).
+
+**Dashboard (live):** the Comparison page now runs any selection of the 13 strategies, one
+request per strategy with progress, on a labelled question set taken from the live index
+(first 20 HotpotQA test questions with gold answers). Screenshot:
+[16-comparison-dashboard-results.png](./screenshots-all13/16-comparison-dashboard-results.png) (13 strategies x 3
+questions, badge "Cloud mode - online"). **n=3 is a smoke test**: the dashboard's "most efficient"
+banner named Fixed-1 only because it is the cheapest of 13 on three easy questions; use the
+n=80 and n=200 benchmark tables for conclusions.
+
+Per-strategy chat screenshots: [screenshots-all13/](./screenshots-all13/) (01 to 15).
+
+**What went wrong on the way, and the fix:**
+- Temporary AWS keys last only about 10 minutes, so several attempts failed with 500 errors that
+  were expired credentials, not code defects; `/compare` returned 500 in about a second until the
+  keys were refreshed.
+- One dashboard request (Fixed-2) failed once with "Failed to fetch". Unhandled server errors
+  were returned without CORS headers, so the browser could not show the error body. The backend
+  now sends them with the allowed origin, and the dashboard retries a failed strategy once.
+- The strategies CRAG, FLARE, RAG-Fusion, Step-Back, HyDE and POMDP-VI are simplified policies
+  built on the same action set, not the original systems. They run and answer correctly here,
+  but they have not yet been benchmarked at scale (see `scripts/run_extra.sh`).
+
 ## AWS console screenshots
 Taken in the AWS console, region Asia Pacific (Sydney), 2026-11-08.
 

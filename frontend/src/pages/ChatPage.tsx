@@ -1065,7 +1065,7 @@ export function ChatPage() {
               </div>
             </div>
             <p className="mt-2 text-center text-[11px] text-slate-600">
-              POMDP agent · cost-aware retrieval control · runs fully local · conversations saved to
+              POMDP agent · cost-aware retrieval control · local mocks or live AWS · conversations saved to
               this browser
             </p>
           </div>

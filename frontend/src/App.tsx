@@ -140,7 +140,7 @@ function AppFooter() {
           <span className="chip bg-slate-800 text-slate-400">injection defense</span>
           <span className="chip bg-slate-800 text-slate-400">security headers</span>
         </div>
-        POMDP Adaptive Agentic RAG · cost-aware retrieval control · runs fully local (no AWS required)
+        POMDP Adaptive Agentic RAG · cost-aware retrieval control · local mocks or live AWS (Bedrock + OpenSearch)
       </div>
     </footer>
   );
