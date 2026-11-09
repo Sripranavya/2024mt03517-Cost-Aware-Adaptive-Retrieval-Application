@@ -153,6 +153,27 @@ significant. The cost-aware reward is what produces the saving. "No significant 
 is the claim, not "equal quality". The full POMDP scored F1 0.651 here and 0.667 in the
 main test run at the same weight, so differences below about 0.02 F1 are noise.
 
+## v3 safeguard: stop on stale retrievals (validation only)
+Setting `STALE_PATIENCE=N` ends an episode after N consecutive retrievals that return no new
+documents (off by default; it applies to every strategy). Chosen rule, fixed in advance: the
+smallest N whose POMDP validation F1 stays within 0.02 of the run without it and that cuts
+spend on out-of-index questions. Validation n=30 (HotpotQA, cost weight 40) and a probe of
+8 general-knowledge questions that are not in the index:
+
+| Setting | POMDP val F1 | POMDP val USD/query | POMDP val hops | Probe: POMDP hops | Probe: POMDP USD/query |
+|---|---|---|---|---|---|
+| off (v2) | 0.601 | 0.00238 | 2.0 | 3.75 | 0.00402 |
+| N=1 | 0.590 | 0.00236 | 2.0 | 3.00 | 0.00331 |
+| N=2 | 0.556 | 0.00241 | 2.0 | 3.75 | 0.00400 |
+
+N=1 meets the rule: about 18% lower spend on out-of-index questions (Self-RAG 6.0 to 5.0 hops),
+all 8 probe questions still refused, no effect on in-index cost or hops. Caveats: the probe is
+8 questions and validation is n=30; run-to-run noise is about 0.05 F1 at n=30 (Fixed RAG with
+identical settings scored 0.542 and 0.601); Adaptive-RAG's validation F1 fell from 0.634 to
+0.559 at N=1 (0.623 at N=2), which may be noise but shows N=1 can cut a legitimate chain short.
+No test-split confirmation was run. The v2 results above remain the reported configuration; the
+safeguard stays off by default.
+
 ## What the evidence supports
 - **No measurable accuracy loss** in any category: no F1 interval excludes 0.
 - **Fewer retrieval hops everywhere:** POMDP stops after one retrieval, so it uses 2 to
