@@ -100,6 +100,7 @@ class RetrievalOrchestrator:
         episode_budget_usd: float = 0.0,
         min_marginal_gain: float = 0.0,
         low_gain_patience: int = 2,
+        stale_patience: int = 0,
         short_answers: bool = False,
         iterative_retrieval: bool = False,
         llm_actions: bool = False,
@@ -121,6 +122,7 @@ class RetrievalOrchestrator:
         self.episode_budget_usd = max(0.0, episode_budget_usd)
         self.min_marginal_gain = max(0.0, min_marginal_gain)
         self.low_gain_patience = max(1, low_gain_patience)
+        self.stale_patience = max(0, stale_patience)
         self.short_answers = short_answers
         self.iterative_retrieval = iterative_retrieval
         self.llm_actions = llm_actions
@@ -322,7 +324,7 @@ class RetrievalOrchestrator:
         collected: list[list[Document]] = []
         scratch: dict[str, str] = {}
         low_gain_streak = 0
-
+        stale_streak = 0
         if self.llm_actions:
             # Optional up-front routing (Adaptive-RAG): one billed classification call.
             def classify(prompt: str) -> str:
@@ -345,6 +347,8 @@ class RetrievalOrchestrator:
                 break
             if self.min_marginal_gain and low_gain_streak >= self.low_gain_patience:
                 break
+            if self.stale_patience and stale_streak >= self.stale_patience:
+                break
             action = policy.decide_next_action(state)
             if action.type is ActionType.STOP:
                 break
@@ -354,6 +358,9 @@ class RetrievalOrchestrator:
                 action, state, acc, cost_tracker, collected, scratch
             )
             posterior = self.belief_updater.update(prior, obs)
+            if action.type is ActionType.RETRIEVE:
+                # Retrievals that return nothing new mean the index has nothing more to give.
+                stale_streak = stale_streak + 1 if obs.new_documents == 0 else 0
             low_gain_streak = (
                 low_gain_streak + 1
                 if posterior - prior < self.min_marginal_gain

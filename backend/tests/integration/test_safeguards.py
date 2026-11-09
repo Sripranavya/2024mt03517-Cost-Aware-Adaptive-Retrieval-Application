@@ -48,3 +48,13 @@ def test_low_value_cutoff_stops_after_patience_exhausted() -> None:
         QUERY, policy, max_hops=6
     )
     assert cut.hops == 2
+
+
+def test_stale_cutoff_stops_when_retrieval_returns_nothing_new() -> None:
+    policy = _LoopPolicy(Action.retrieve(RetrievalSource.LOCAL_CORPUS))
+    off = _engine().orchestrator.run(QUERY, policy, max_hops=6)
+    stale = _engine(STALE_PATIENCE=2).orchestrator.run(QUERY, policy, max_hops=6)
+    assert off.hops == 6
+    # The same query retrieves the same documents again, so the 2nd and 3rd hops are stale.
+    assert stale.hops == 3
+    assert stale.answer

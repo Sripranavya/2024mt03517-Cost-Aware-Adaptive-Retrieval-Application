@@ -136,6 +136,7 @@ class Engine:
             episode_budget_usd=settings.episode_budget_usd,
             min_marginal_gain=settings.min_marginal_gain,
             low_gain_patience=settings.low_gain_patience,
+            stale_patience=settings.stale_patience,
             short_answers=settings.short_answers,
             iterative_retrieval=settings.iterative_retrieval,
             llm_actions=settings.llm_actions,

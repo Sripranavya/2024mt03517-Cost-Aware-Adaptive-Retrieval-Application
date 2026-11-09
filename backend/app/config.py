@@ -102,6 +102,8 @@ class Settings(BaseSettings):
     episode_budget_usd: float = Field(default=0.0, ge=0.0, alias="EPISODE_BUDGET_USD")
     min_marginal_gain: float = Field(default=0.0, ge=0.0, alias="MIN_MARGINAL_GAIN")
     low_gain_patience: int = Field(default=2, ge=1, le=10, alias="LOW_GAIN_PATIENCE")
+    # Stop after this many consecutive retrievals that return no new documents (0 = off).
+    stale_patience: int = Field(default=0, ge=0, le=10, alias="STALE_PATIENCE")
     live_sources: bool | None = Field(default=None, alias="LIVE_SOURCES")
     seed_sample_corpus: bool = Field(default=True, alias="SEED_SAMPLE_CORPUS")
     short_answers: bool = Field(default=False, alias="SHORT_ANSWERS")
