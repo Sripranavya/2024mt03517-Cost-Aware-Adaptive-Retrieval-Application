@@ -33,7 +33,9 @@ def evaluate_batch(
     items = [{"query": it.query, "reference": it.reference} for it in body.items]
     with user_slot(user.username, settings.max_concurrent_per_user):
         engine = get_engine()
-        metrics = engine.evaluate_batch(items, strategies=body.strategies)
+        metrics = engine.evaluate_batch(
+            items, strategies=body.strategies, workers=settings.eval_workers
+        )
     return BatchEvalResponse(
         count=len(items),
         metrics=[

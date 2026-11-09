@@ -9,6 +9,8 @@ export const strategyNameSchema = z.enum([
   "pomdp_vi",
   "pomdp_quality",
   "fixed",
+  "fixed_1",
+  "fixed_2",
   "self_rag",
   "adaptive",
   "crag",

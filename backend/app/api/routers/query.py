@@ -12,6 +12,7 @@ from app.schemas import (
     CompareResponse,
     QueryRequest,
     QueryResponse,
+    StrategyName,
     UserInfo,
 )
 from app.security.auth import get_current_user
@@ -37,9 +38,13 @@ def run_query(
 @router.get("/compare", response_model=CompareResponse)
 def compare(
     query: str = Query(min_length=1, max_length=MAX_QUERY_LEN),
+    strategies: list[StrategyName] | None = Query(default=None),
     user: UserInfo = Depends(get_current_user),
 ) -> CompareResponse:
-    """Run all strategies over one query for a side-by-side comparison."""
+    """Run strategies over one query for a side-by-side comparison.
+
+    Defaults to the four headline strategies; pass ``strategies`` (repeated) for others.
+    """
     clean = sanitize_user_query(query)
     if not clean:
         raise HTTPException(
@@ -49,7 +54,7 @@ def compare(
     settings = get_settings()
     with user_slot(user.username, settings.max_concurrent_per_user):
         engine = get_engine()
-        results = engine.compare(clean)
+        results = engine.compare(clean, strategies, workers=settings.eval_workers)
     return CompareResponse(
         query=clean,
         results={name: run_result_to_response(r) for name, r in results.items()},

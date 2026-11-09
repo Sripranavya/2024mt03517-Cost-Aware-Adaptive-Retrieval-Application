@@ -211,8 +211,15 @@ class Engine:
         policy = self._policies[strategy]
         return self.orchestrator.run(query, policy, self.settings.max_hops)
 
-    def compare(self, query: str) -> dict[str, RunResult]:
-        return {name: self.run_query(query, name) for name in STRATEGIES}
+    def compare(
+        self, query: str, strategies: list[str] | None = None, workers: int = 1
+    ) -> dict[str, RunResult]:
+        names = strategies or list(STRATEGIES)
+        if workers > 1:
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                runs = list(pool.map(lambda name: self.run_query(query, name), names))
+            return dict(zip(names, runs, strict=True))
+        return {name: self.run_query(query, name) for name in names}
 
     # --- evaluation -------------------------------------------------------------
     def _cosine(self, a: str, b: str) -> float:

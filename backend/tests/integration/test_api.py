@@ -188,3 +188,39 @@ def test_query_response_exposes_injection_flag(
     assert any(step["injection_flagged"] for step in poisoned.json()["trace"])
     assert clean.status_code == 200, clean.text
     assert not any(step["injection_flagged"] for step in clean.json()["trace"])
+
+
+ALL_STRATEGIES = (
+    "pomdp", "pomdp_vi", "pomdp_quality", "fixed", "fixed_1", "fixed_2", "self_rag",
+    "adaptive", "crag", "flare", "rag_fusion", "step_back", "hyde",
+)
+
+
+def test_every_strategy_runs_through_compare(client: TestClient, auth_headers):
+    resp = client.get(
+        "/api/v1/compare",
+        params=[("query", "What is the capital of Japan?")]
+        + [("strategies", s) for s in ALL_STRATEGIES],
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    results = resp.json()["results"]
+    assert set(results) == set(ALL_STRATEGIES)
+    for name, res in results.items():
+        assert res["strategy"] == name
+        assert res["hops"] >= 1 and res["answer"]
+
+
+def test_every_strategy_runs_through_batch_evaluate(client: TestClient, auth_headers):
+    resp = client.post(
+        "/api/v1/evaluate/batch",
+        json={
+            "items": [
+                {"query": "What is the capital of France?", "reference": "Paris"},
+            ],
+            "strategies": list(ALL_STRATEGIES),
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert [m["strategy"] for m in resp.json()["metrics"]] == list(ALL_STRATEGIES)

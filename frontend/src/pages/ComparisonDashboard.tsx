@@ -1,9 +1,10 @@
-import { FormEvent, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { evaluateBatch } from "../api/client";
+import { FormEvent, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { evaluateBatch, health } from "../api/client";
 import { EVAL_SAMPLE } from "../data/evalSample";
-import type { StrategyMetrics } from "../types/schemas";
-import { strategyMeta } from "../theme";
+import { LIVE_EVAL_SAMPLE } from "../data/liveEvalSample";
+import type { StrategyMetrics, StrategyName } from "../types/schemas";
+import { ALL_STRATEGY_KEYS, strategyMeta } from "../theme";
 import { CostLatencyChart } from "../components/CostLatencyChart";
 import { MetricsTable } from "../components/MetricsTable";
 import { RadarMetricsChart } from "../components/RadarMetricsChart";
@@ -66,19 +67,64 @@ function downloadCsv(metrics: StrategyMetrics[]) {
 }
 
 export function ComparisonDashboard() {
-  const [count, setCount] = useState(EVAL_SAMPLE.length);
+  const healthQuery = useQuery({ queryKey: ["health"], queryFn: health });
+  const isCloud = healthQuery.data?.mode === "cloud";
+  // Cloud mode searches the live HotpotQA index, so the generic demo questions cannot be
+  // answered there; use the labelled live set by default and let the user override it.
+  const [setChoice, setSetChoice] = useState<"auto" | "live" | "demo">("auto");
+  const sample = useMemo(
+    () => ((setChoice === "auto" ? (isCloud ? "live" : "demo") : setChoice) === "live"
+      ? LIVE_EVAL_SAMPLE
+      : EVAL_SAMPLE),
+    [setChoice, isCloud],
+  );
+  const usingLive = sample === LIVE_EVAL_SAMPLE;
 
-  const mutation = useMutation({
-    mutationFn: () => evaluateBatch(EVAL_SAMPLE.slice(0, count)),
-  });
+  const [count, setCount] = useState(5);
+  const [selected, setSelected] = useState<StrategyName[]>([...ALL_STRATEGY_KEYS]);
+  const [metrics, setMetrics] = useState<StrategyMetrics[]>([]);
+  const [failures, setFailures] = useState<Record<string, string>>({});
+  const [running, setRunning] = useState<string | null>(null);
+  const [done, setDone] = useState(0);
+  const cancelled = useRef(false);
+
+  const queryCount = Math.min(count, sample.length);
+  const isPending = running !== null;
+
+  function toggle(s: StrategyName) {
+    setSelected((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]));
+  }
+
+  // One strategy per request keeps each call short and lets a failure be reported per
+  // strategy instead of losing the whole benchmark.
+  async function run() {
+    cancelled.current = false;
+    setMetrics([]);
+    setFailures({});
+    setDone(0);
+    const items = sample.slice(0, queryCount);
+    const order = ALL_STRATEGY_KEYS.filter((s) => selected.includes(s));
+    for (const strategy of order) {
+      if (cancelled.current) break;
+      setRunning(strategy);
+      try {
+        const res = await evaluateBatch(items, [strategy]);
+        setMetrics((cur) => [...cur, ...res.metrics]);
+      } catch (err) {
+        setFailures((cur) => ({ ...cur, [strategy]: (err as Error).message }));
+      }
+      setDone((n) => n + 1);
+    }
+    setRunning(null);
+  }
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    mutation.mutate();
+    if (!isPending && selected.length > 0) void run();
   }
 
-  const metrics = mutation.data?.metrics ?? [];
   const hasData = metrics.length > 0;
+  const failed = Object.entries(failures);
 
   const winner = hasData ? argbest(metrics, "efficiency", true) : null;
   const bestAcc = hasData ? argbest(metrics, "accuracy", true) : null;
@@ -94,7 +140,8 @@ export function ComparisonDashboard() {
               Comparison Dashboard
             </h1>
             <p className="mt-1 text-slate-400">
-              Benchmark all four strategies over a labelled query set — accuracy vs. cost, hops and efficiency.
+              Benchmark the selected strategies over a labelled query set — accuracy vs. cost, hops
+              and efficiency.
             </p>
           </div>
           {hasData && (
@@ -109,46 +156,129 @@ export function ComparisonDashboard() {
 
       <form
         onSubmit={onSubmit}
-        className="mb-6 flex flex-wrap items-center gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-4"
+        className="mb-6 space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-4"
       >
-        <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
-          <span>Queries</span>
-          <input
-            type="number"
-            min={1}
-            max={EVAL_SAMPLE.length}
-            value={count}
-            onChange={(e) => setCount(Number(e.target.value))}
-            className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-100"
-            aria-label="Number of queries"
-          />
-          <span className="text-xs text-slate-400">/ {EVAL_SAMPLE.length}</span>
-        </label>
-        <button type="submit" disabled={mutation.isPending} className="btn-primary px-5 py-2.5">
-          {mutation.isPending ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
-              <span>Evaluating…</span>
-            </>
-          ) : (
-            <>▶ Run benchmark</>
+        <div className="flex flex-wrap items-center gap-4">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
+            <span>Queries</span>
+            <input
+              type="number"
+              min={1}
+              max={sample.length}
+              value={count}
+              onChange={(e) => setCount(Number(e.target.value))}
+              className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-100"
+              aria-label="Number of queries"
+            />
+            <span className="text-xs text-slate-400">/ {sample.length}</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-300">
+            <span>Question set</span>
+            <select
+              value={setChoice}
+              onChange={(e) => setSetChoice(e.target.value as "auto" | "live" | "demo")}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-slate-100"
+              aria-label="Question set"
+            >
+              <option value="auto">Auto ({isCloud ? "live index" : "demo"})</option>
+              <option value="live">Live index (HotpotQA, hp-test)</option>
+              <option value="demo">Generic demo questions</option>
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={isPending || selected.length === 0}
+            className="btn-primary px-5 py-2.5"
+          >
+            {isPending ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/70 border-t-transparent" />
+                <span>Evaluating?</span>
+              </>
+            ) : (
+              <>? Run benchmark</>
+            )}
+          </button>
+          {isPending && (
+            <button
+              type="button"
+              onClick={() => {
+                cancelled.current = true;
+              }}
+              className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
+            >
+              Stop after current strategy
+            </button>
           )}
-        </button>
-        <span className="text-xs text-slate-400">4 strategies × {count} queries, fully local</span>
+          <span className="text-xs text-slate-400" data-testid="benchmark-summary">
+            {selected.length} strategies ? {queryCount} queries,{" "}
+            {isCloud ? "live AWS" : "local mocks"}
+            {usingLive ? " ? HotpotQA questions from the live index" : ""}
+          </span>
+        </div>
+        <fieldset className="flex flex-wrap gap-2" aria-label="Strategies">
+          {ALL_STRATEGY_KEYS.map((s) => (
+            <label
+              key={s}
+              className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                selected.includes(s)
+                  ? "border-indigo-500 bg-indigo-500/15 text-indigo-200"
+                  : "border-slate-700 bg-slate-800 text-slate-400"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.includes(s)}
+                onChange={() => toggle(s)}
+                disabled={isPending}
+                className="sr-only"
+              />
+              {strategyMeta(s).label}
+            </label>
+          ))}
+          <button
+            type="button"
+            onClick={() => setSelected([...ALL_STRATEGY_KEYS])}
+            disabled={isPending}
+            className="rounded-lg px-2 py-1 text-xs text-slate-400 underline"
+          >
+            all
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelected(["pomdp", "fixed", "self_rag", "adaptive"])}
+            disabled={isPending}
+            className="rounded-lg px-2 py-1 text-xs text-slate-400 underline"
+          >
+            headline four
+          </button>
+        </fieldset>
+        {isPending && (
+          <p className="text-sm text-slate-300" role="status">
+            Running {strategyMeta(running ?? "").label} ({done + 1} of {selected.length})?
+          </p>
+        )}
       </form>
 
-      {mutation.isError && (
-        <p className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-          <span aria-hidden>⚠</span>
-          {(mutation.error as Error).message}
-        </p>
+      {failed.length > 0 && (
+        <div className="mb-4 space-y-2" role="alert">
+          {failed.map(([name, message]) => (
+            <p
+              key={name}
+              className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+            >
+              <span aria-hidden>?</span>
+              {strategyMeta(name).label}: {message}
+            </p>
+          ))}
+        </div>
       )}
 
-      {!hasData && !mutation.isPending && (
+      {!hasData && !isPending && failed.length === 0 && (
         <div className="grid place-items-center rounded-2xl border border-slate-800 bg-slate-900 p-12 text-center text-slate-400">
-          <div className="mb-2 text-4xl">📊</div>
+          <div className="mb-2 text-4xl">??</div>
           <p className="font-medium text-slate-300">Run the benchmark to compare strategies</p>
-          <p className="text-sm">You’ll get an aggregate table, a radar profile and six metric charts.</p>
+          <p className="text-sm">You?ll get an aggregate table, a radar profile and six metric charts.</p>
         </div>
       )}
 

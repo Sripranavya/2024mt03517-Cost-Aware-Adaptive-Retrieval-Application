@@ -136,6 +136,8 @@ class Settings(BaseSettings):
     max_concurrent_per_user: int = Field(
         default=4, ge=1, le=100, alias="MAX_CONCURRENT_PER_USER"
     )
+    # Concurrent queries per strategy inside /evaluate/batch and /compare.
+    eval_workers: int = Field(default=1, ge=1, le=8, alias="EVAL_WORKERS")
 
     # --- Local storage ---
     local_data_dir: str = Field(default="./.localdata", alias="LOCAL_DATA_DIR")
