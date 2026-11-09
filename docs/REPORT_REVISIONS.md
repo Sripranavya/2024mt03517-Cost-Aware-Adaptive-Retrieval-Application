@@ -40,6 +40,16 @@ and must not be presented as evidence. Replace with:
   The POMDP matches the best fixed depth on this 2-hop dataset; it does not beat Fixed-2.
 - **Table D (stopping study).** On HotpotQA the POMDP used 2.0 hops in every category
   (7 to 40 queries each), so no per-category adaptivity is claimed.
+- **Table A2 (HotpotQA test n=200, same configuration).** POMDP F1 0.692 at 0.00248 USD/query
+  and 2.12 hops; Fixed 0.710 at 0.00344 and 3.0; Fixed-2 0.686 at 0.00237 and 2.0. POMDP cost vs
+  Fixed -0.00096 [-0.00103, -0.00089] (about 28% lower); F1 vs Fixed -0.018 [-0.042, +0.002]
+  (not significant); vs Fixed-2 cost +0.00010 [+0.00005, +0.00017], F1 +0.006 [-0.020, +0.031].
+  Prefer this over n=80 where the report quotes HotpotQA, and keep n=80 as the first iteration.
+- **Table D2 (adaptivity audit).** At the tuned weights the POMDP uses exactly 2 hops on 96% of
+  HotpotQA queries (weight 40) and about 1 hop on 98% of MS MARCO queries (weight 60); depth is
+  set mainly by the cost weight. State "adaptive by design, near-fixed depth when tuned".
+- **Table D3 (stale-stop safeguard, validation).** `STALE_PATIENCE=1` cut POMDP spend on
+  out-of-index questions by about 18% (3.75 to 3.0 hops) with no in-index change; off by default.
 - **Table E (MS MARCO, single hop, test n=60).** Fixed-1 F1 0.333 at 0.00106 USD/query;
   POMDP (weight 60) 0.323 at 0.00107 and 1.02 hops; Fixed-2 0.336 at 0.00200; Fixed-3 0.334
   at 0.00290; Self-RAG 0.338 at 0.00191; Adaptive-RAG 0.330 at 0.00120. The POMDP matches the

@@ -42,6 +42,27 @@ loss; it dominates Self-RAG and Adaptive-RAG.
 used 2.0 hops in every stopping-study category, and categories have only 7 to 40
 queries); generalisation beyond HotpotQA and one run (n=80, weight picked on n=30).
 
+## Experiment B, larger HotpotQA test (n=200, live AWS)
+Same configuration as v2 (cost weight 40 chosen on validation, stale-stop off, no tuning on this
+data). The first 80 questions are the earlier test questions (hash order), so this extends the
+n=80 result and is not an independent replication. A fresh index of about 2,000 passages was
+built, so the distractor pool is larger than in the n=80 run. Only POMDP, Fixed and Fixed-2
+were run (Self-RAG and Adaptive-RAG were dominated at n=80).
+
+| Strategy (n=200) | F1 | USD/query | Hops | Latency (ms) |
+|---|---|---|---|---|
+| POMDP | 0.692 | 0.00248 | 2.12 | 6,718 |
+| Fixed (3 hops) | 0.710 | 0.00344 | 3.00 | 10,433 |
+| Fixed-2 | 0.686 | 0.00237 | 2.00 | 6,866 |
+
+Paired bootstrap 95% CIs for the POMDP: vs Fixed, cost -0.00096 [-0.00103, -0.00089] (about 28%
+cheaper), hops -0.885, latency -3.7 s (all lower); F1 -0.018 [-0.042, +0.002], not significant.
+Vs Fixed-2, F1 +0.006 [-0.020, +0.031] not significant, cost +0.00010 [+0.00005, +0.00017]
+(about 4% more, significant), hops +0.115. The POMDP and Fixed-2 and Fixed-3 are all on the
+cost/F1 frontier. This confirms the n=80 conclusion with tighter intervals: about 28% cheaper
+than the default 3-hop pipeline with no significant F1 loss (the interval still allows a loss
+of up to 4 F1 points), and level with, slightly costlier than, the best fixed depth.
+
 ## Experiment B on MS MARCO (single hop, live AWS)
 Setup: validation n=20, test n=60, weights 20/40/60 swept on validation, the picker chose
 60. Absolute F1 is low (about 0.33) because references are full sentences while answers
