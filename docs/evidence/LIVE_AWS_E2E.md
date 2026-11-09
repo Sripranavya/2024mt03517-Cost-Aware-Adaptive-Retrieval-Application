@@ -87,10 +87,13 @@ Taken in the AWS console, region Asia Pacific (Sydney), 2026-11-08.
 | [01-opensearch-domain-list.png](./aws-console/01-opensearch-domain-list.png) | OpenSearch Service dashboard: one domain (`agentic-rag-vectors`), status Active, engine OpenSearch 2.11, cluster health **Yellow**, 7.68 GiB free storage. This is the domain list, not the domain detail page, so the endpoint, instance type and document count are not visible. |
 | [02-cloudwatch-bedrock-metrics.png](./aws-console/02-cloudwatch-bedrock-metrics.png) | CloudWatch metrics for Bedrock: metrics exist for `amazon.titan-embed-text-v2:0` and `au.anthropic.claude-haiku-4-5-20251001-v1:0` (Invocations, InputTokenCount, InvocationLatency), showing both models were actually invoked in this account and region. No metric is selected, so the graph is empty. |
 
-Not captured: the OpenSearch domain detail page (endpoint, instance type, searchable
-documents) and a CloudWatch graph with a metric selected. A Bedrock model-catalog page for
-"Claude Haiku 5.5" was also seen, but the experiments used Claude Haiku 4.5, so it is not
-used as evidence.
+| [03-cli-domain-and-indexes.png](./aws-console/03-cli-domain-and-indexes.png) | CloudShell (account 535635599719): domain `agentic-rag-vectors`, OpenSearch 2.11, `t3.small.search`, 1 node, Processing False, endpoint in ap-southeast-2; signed-request document counts per index: `hp-val` 300, `hp-test` 800, `hp-t200` 1,996, `ms-val` 165, `ms-test` 651, `ms-study` 186, plus earlier experiment indexes (`hotpot-*`) and a 12-document smoke-test index. |
+| [04-cli-bedrock-and-invocations.png](./aws-console/04-cli-bedrock-and-invocations.png) | Bedrock inference profile "AU Anthropic Claude Haiku 4.5" ACTIVE and Titan Text Embeddings v2 (provider Amazon); CloudWatch `AWS/Bedrock` Invocations for the Haiku 4.5 profile: 14,838 in the 24 hours ending 2026-11-09 08:03 UTC (10 the day before). The window is the last 3 days only, so it is a partial total. |
+| [05-cli-services-and-results.png](./aws-console/05-cli-services-and-results.png) | DynamoDB table `agentic-rag-state` ACTIVE (pay-per-request), Cognito pool `agentic-rag-users` (its `Status` field prints `None`, which is normal for that API), S3 bucket with only a `smoke.txt` object (the benchmarks did not write to S3); result folders `hpv2`, `hpv4`, `msv2`; per-query row counts 321 (80 queries x 4 strategies + header) and 601 (200 x 3 + header). |
+
+Not captured: the OpenSearch domain detail page in the console and a CloudWatch graph with a
+metric selected. A Bedrock model-catalog page for "Claude Haiku 5.5" was also seen, but the
+experiments used Claude Haiku 4.5, so it is not used as evidence.
 
 ## Reproduce
 1. In CloudShell: `aws configure export-credentials --format powershell`, copy the 3 lines.
