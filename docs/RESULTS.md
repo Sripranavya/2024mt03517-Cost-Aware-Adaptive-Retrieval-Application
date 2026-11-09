@@ -63,6 +63,44 @@ cost/F1 frontier. This confirms the n=80 conclusion with tighter intervals: abou
 than the default 3-hop pipeline with no significant F1 loss (the interval still allows a loss
 of up to 4 F1 points), and level with, slightly costlier than, the best fixed depth.
 
+## Experiment B, all strategies on HotpotQA (test n=80, one process, live AWS)
+`scripts/run_extra.sh` benchmarks the strategies that had only been smoke-tested: POMDP-VI,
+CRAG, FLARE, RAG-Fusion, Step-Back and HyDE. POMDP and Fixed are re-run in the same process so the
+paired intervals compare like with like; Self-RAG and Adaptive-RAG are the reference rows from
+the earlier v2 run (same split, same `hp-test` index, same weight 40). The extras are simplified
+policies on the same action set, not the original systems.
+
+| Strategy | F1 | USD/query | Hops | Latency (ms) | On cost/F1 frontier |
+|---|---|---|---|---|---|
+| POMDP | 0.668 | 0.00243 | 2.08 | 5,222 | yes |
+| Step-Back | 0.677 | 0.00252 | 3.00 | 6,820 | yes |
+| HyDE | 0.666 | 0.00245 | 3.73 | 7,291 | no (dominated by POMDP) |
+| FLARE | 0.642 | 0.00297 | 3.98 | 10,370 | no |
+| Self-RAG (v2 run) | 0.667 | 0.00302 | 4.08 | 10,555 | no |
+| Adaptive-RAG (v2 run) | 0.622 | 0.00328 | 2.77 | 9,605 | no |
+| Fixed (3 hops) | 0.668 | 0.00348 | 3.00 | 10,416 | no |
+| CRAG | 0.657 | 0.00352 | 5.01 | 15,377 | no |
+| RAG-Fusion | 0.701 | 0.00396 | 6.00 | 17,343 | yes (highest F1) |
+| POMDP-VI | 0.675 | 0.00528 | 4.78 | 16,688 | no |
+
+Paired bootstrap 95% CIs, POMDP minus each strategy (same process, n=80):
+- **Cost is significantly lower** than Fixed (-0.00104 [-0.00114, -0.00094], about 30%), POMDP-VI
+  (-0.00284), CRAG (-0.00108), FLARE (-0.00054) and RAG-Fusion (-0.00153); hops and latency are
+  lower than all of them too.
+- **Cost is not significantly different** from Step-Back (-0.00009 [-0.00015, +0.00000]) and HyDE
+  (-0.00002 [-0.00014, +0.00012]). POMDP uses fewer hops (2.08 vs 3.0 and 3.73) and is faster
+  (-1.6 s and -2.1 s, significant), but the dollar cost is the same.
+- **F1 differences are all not significant** (every interval contains 0). The highest F1 is
+  RAG-Fusion (0.701, POMDP -0.034 [-0.087, +0.015]) at about 63% higher cost and 6 hops.
+
+**What this supports:** among the 13 strategies the POMDP is in the cheapest tier together with
+Fixed-2, Step-Back and HyDE, and it is significantly cheaper than Fixed, Self-RAG, Adaptive-RAG,
+CRAG, FLARE, RAG-Fusion and POMDP-VI at no significant F1 loss. **What it does not support:** a
+cost advantage over Step-Back, HyDE or Fixed-2, or "POMDP dominates every baseline". Step-Back
+(a simple step-back reformulation then a fixed 3-step retrieve) is as cheap at slightly higher F1
+(not significant). RAG-Fusion reaches the highest F1 for more money. Run-to-run noise is about
+0.01 F1 (Fixed scored 0.668 here and 0.679 earlier).
+
 ## Experiment B on MS MARCO (single hop, live AWS)
 Setup: validation n=20, test n=60, weights 20/40/60 swept on validation, the picker chose
 60. Absolute F1 is low (about 0.33) because references are full sentences while answers

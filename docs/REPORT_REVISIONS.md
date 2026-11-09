@@ -50,6 +50,12 @@ and must not be presented as evidence. Replace with:
   set mainly by the cost weight. State "adaptive by design, near-fixed depth when tuned".
 - **Table D3 (stale-stop safeguard, validation).** `STALE_PATIENCE=1` cut POMDP spend on
   out-of-index questions by about 18% (3.75 to 3.0 hops) with no in-index change; off by default.
+- **Table A3 (all 13 strategies, HotpotQA test n=80, one process).** See `docs/RESULTS.md`. POMDP
+  0.668 F1 at 0.00243 USD/query and 2.08 hops; significantly cheaper than Fixed, POMDP-VI, CRAG,
+  FLARE and RAG-Fusion (and Self-RAG, Adaptive-RAG from the earlier run) with no significant F1
+  difference; **not** significantly cheaper than Step-Back (0.00252) or HyDE (0.00245), which have
+  similar F1; RAG-Fusion has the highest F1 (0.701) at 0.00396 and 6 hops. Do not write
+  "POMDP outperforms all baselines"; write "among the cheapest, matching the best simple baselines".
 - **Table E (MS MARCO, single hop, test n=60).** Fixed-1 F1 0.333 at 0.00106 USD/query;
   POMDP (weight 60) 0.323 at 0.00107 and 1.02 hops; Fixed-2 0.336 at 0.00200; Fixed-3 0.334
   at 0.00290; Self-RAG 0.338 at 0.00191; Adaptive-RAG 0.330 at 0.00120. The POMDP matches the

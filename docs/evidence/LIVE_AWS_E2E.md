@@ -119,8 +119,9 @@ Per-strategy chat screenshots: [screenshots-all13/](./screenshots-all13/) (01 to
   were returned without CORS headers, so the browser could not show the error body. The backend
   now sends them with the allowed origin, and the dashboard retries a failed strategy once.
 - The strategies CRAG, FLARE, RAG-Fusion, Step-Back, HyDE and POMDP-VI are simplified policies
-  built on the same action set, not the original systems. They run and answer correctly here,
-  but they have not yet been benchmarked at scale (see `scripts/run_extra.sh`).
+  built on the same action set, not the original systems. They run and answer correctly here and
+  were then benchmarked on HotpotQA (n=80); see `docs/RESULTS.md` for their cost, F1 and the
+  paired intervals against the POMDP.
 
 ## AWS console screenshots
 Taken in the AWS console, region Asia Pacific (Sydney), 2026-11-08.
